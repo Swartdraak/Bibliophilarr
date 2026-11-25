@@ -21,17 +21,42 @@ const mapDispatchToProps = {
 
 class DeleteAuthorModalContentConnector extends Component {
 
+  state = {
+    isDeleting: false,
+    deleteError: null
+  };
+
+  componentWillUnmount() {
+    this.isUnmounted = true;
+  }
+
   //
   // Listeners
 
   onDeletePress = (deleteFiles, addImportListExclusion) => {
-    this.props.deleteAuthor({
+    if (this.state.isDeleting) {
+      return;
+    }
+
+    this.setState({ isDeleting: true, deleteError: null });
+    const request = this.props.deleteAuthor({
       id: this.props.authorId,
       deleteFiles,
       addImportListExclusion
     });
 
-    this.props.onModalClose(true);
+    request.done(() => {
+      if (!this.isUnmounted) {
+        this.setState({ isDeleting: false });
+        this.props.onModalClose(true);
+      }
+    });
+
+    request.fail((deleteError) => {
+      if (!this.isUnmounted) {
+        this.setState({ isDeleting: false, deleteError });
+      }
+    });
   };
 
   //
@@ -41,6 +66,7 @@ class DeleteAuthorModalContentConnector extends Component {
     return (
       <DeleteAuthorModalContent
         {...this.props}
+        {...this.state}
         onDeletePress={this.onDeletePress}
       />
     );

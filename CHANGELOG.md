@@ -20,6 +20,8 @@ process.
 
 ### Fixed
 
+- Keep the author and its catalogue records when Delete Files cannot verify
+  the library folder. Show the error in the author deletion dialog.
 - Keep Inventaire work covers out of author portraits when the source supplies
   no author image.
 - Honor Hardcover's recorded rate-limit deadline after restarting the same

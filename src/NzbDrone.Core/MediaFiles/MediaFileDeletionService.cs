@@ -24,6 +24,7 @@ namespace NzbDrone.Core.MediaFiles
         void DeleteTrackFile(Author author, BookFile bookFile);
         void DeleteTrackFile(BookFile bookFile, string subfolder = "");
         void DeleteFilesForExplicitBookRemoval(int bookId);
+        void PreflightAuthorRemoval(Author author);
     }
 
     public class MediaFileDeletionService : IDeleteMediaFiles,
@@ -285,6 +286,89 @@ namespace NzbDrone.Core.MediaFiles
             }
         }
 
+        public void PreflightAuthorRemoval(Author author)
+        {
+            ValidateAuthorRemovalRoot(author);
+        }
+
+        private RootFolder ValidateAuthorRemovalRoot(Author author)
+        {
+            var path = author.Path;
+            var root = !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path) &&
+                       !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "." or "..")
+                ? _rootFolderService.GetBestRootFolder(path)
+                : null;
+            if (root == null || !root.Path.IsParentPath(path))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The author folder is outside a registered root. Review the author location before trying again.");
+            }
+
+            if (root.IsCalibreLibrary)
+            {
+                if (root.CalibreSettings == null)
+                {
+                    throw new NzbDroneClientException(HttpStatusCode.Conflict, "The author folder's Calibre library is unavailable. Check its settings before trying again.");
+                }
+
+                return root;
+            }
+
+            if (!_diskProvider.FolderExists(root.Path))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The author folder's registered root is unavailable. Restore access before trying again.");
+            }
+
+            if (_rootFolderService.All().Any(other => path.IsParentPath(other.Path)) ||
+                _authorService.AllAuthorPaths().Any(other => other.Key != author.Id &&
+                    (path.PathEquals(other.Value) || path.IsParentPath(other.Value))))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The author folder overlaps another author or registered root. Review its location before trying again.");
+            }
+
+            try
+            {
+                // The registered root itself may be an intentionally configured alias.
+                for (var current = Path.TrimEndingDirectorySeparator(path); !current.PathEquals(root.Path); current = Path.GetDirectoryName(current))
+                {
+                    RejectLinkedAuthorPath(_diskProvider.GetDirectoryInfo(current));
+                }
+
+                // The legacy recycle operation is recursive. Inspect each child before walking into it.
+                var directory = _diskProvider.GetDirectoryInfo(path);
+                if (directory.Exists)
+                {
+                    var pending = new Stack<IDirectoryInfo>();
+                    pending.Push(directory);
+                    var options = new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = false };
+                    while (pending.TryPop(out var current))
+                    {
+                        foreach (var child in current.EnumerateFileSystemInfos("*", options))
+                        {
+                            RejectLinkedAuthorPath(child);
+                            if (child is IDirectoryInfo childDirectory)
+                            {
+                                pending.Push(childDirectory);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The author folder could not be checked. Restore access before trying again.");
+            }
+
+            return root;
+        }
+
+        private static void RejectLinkedAuthorPath(IFileSystemInfo path)
+        {
+            if (path.LinkTarget != null || (path.Exists && (path.Attributes & FileAttributes.ReparsePoint) != 0))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A linked path was found below the registered root. Review the author folder before trying again.");
+            }
+        }
+
         [EventHandleOrder(EventHandleOrder.First)]
         public void Handle(AuthorDeletedEvent message)
         {
@@ -293,7 +377,7 @@ namespace NzbDrone.Core.MediaFiles
                 var author = message.Author;
 
                 var rootFolder = _rootFolderService.GetBestRootFolder(message.Author.Path);
-                var isCalibre = rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null;
+                var isCalibre = rootFolder?.IsCalibreLibrary == true && rootFolder.CalibreSettings != null;
 
                 if (isCalibre)
                 {
@@ -306,44 +390,30 @@ namespace NzbDrone.Core.MediaFiles
 
         public void HandleAsync(AuthorDeletedEvent message)
         {
-            if (message.DeleteFiles)
+            if (!message.DeleteFiles)
             {
-                var author = message.Author;
+                return;
+            }
 
-                var rootFolder = _rootFolderService.GetBestRootFolder(message.Author.Path);
-                var isCalibre = rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null;
+            RootFolder root;
+            try
+            {
+                root = ValidateAuthorRemovalRoot(message.Author);
+            }
+            catch (NzbDroneClientException exception)
+            {
+                _logger.Warn("Skipped deleting author folder after catalogue removal: {0}", exception.Message);
+                return;
+            }
 
-                if (!isCalibre)
+            if (!root.IsCalibreLibrary)
+            {
+                if (_diskProvider.FolderExists(message.Author.Path))
                 {
-                    var allAuthors = _authorService.AllAuthorPaths();
-
-                    foreach (var s in allAuthors)
-                    {
-                        if (s.Key == author.Id)
-                        {
-                            continue;
-                        }
-
-                        if (author.Path.IsParentPath(s.Value))
-                        {
-                            _logger.Error("Author path: '{0}' is a parent of another author, not deleting files.", author.Path);
-                            return;
-                        }
-
-                        if (author.Path.PathEquals(s.Value))
-                        {
-                            _logger.Error("Author path: '{0}' is the same as another author, not deleting files.", author.Path);
-                            return;
-                        }
-                    }
-
-                    if (_diskProvider.FolderExists(message.Author.Path))
-                    {
-                        _recycleBinProvider.DeleteFolder(message.Author.Path);
-                    }
-
-                    _eventAggregator.PublishEvent(new DeleteCompletedEvent());
+                    _recycleBinProvider.DeleteFolder(message.Author.Path);
                 }
+
+                _eventAggregator.PublishEvent(new DeleteCompletedEvent());
             }
         }
 
