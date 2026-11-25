@@ -498,6 +498,28 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
         }
 
+        [TestCase("The Amber Moon (Book 2)", "The Amber Moon", null, false)]
+        [TestCase("The Amber Moon: Volume 2", "The Amber Moon", null, false)]
+        [TestCase("The Amber Moon: Vol. #2", "The Amber Moon", null, false)]
+        [TestCase("The Amber Moon: A Novel", "The Amber Moon", null, true)]
+        [TestCase("The Amber Moon: Book 2: A Subtitle", "The Amber Moon", null, true)]
+        [TestCase("The Amber Moon (Book 2)", "The Amber Moon", "B012345678", true)]
+        [TestCase("The Amber Moon (Book 2)", "The Amber Moon (Book 2)", null, true)]
+        public void should_require_corroboration_for_an_explicit_terminal_volume(string fileTitle, string candidateTitle, string candidateAsin, bool shouldMatch)
+        {
+            GivenRetryCandidate(candidateTitle, true);
+            _audiobookEdition.Asin = candidateAsin;
+            var tracks = CreateRetryTracks(fileTitle, $"Test Author - {fileTitle}");
+            tracks[0].FileTrackInfo.Title = fileTitle;
+            tracks[0].FileTrackInfo.Asin = "B012345678";
+            tracks[0].FileTrackInfo.AsinConfidence = 0.9;
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeSameAs(shouldMatch ? _audiobookEdition : null);
+            release.IdentificationHoldReason.Should().Be(shouldMatch ? null : LibraryImportHoldReason.ProviderIdentityConflict);
+        }
+
         [TestCase("Study Guide", false)]
         [TestCase("Teacher’s Guide, with Poster", false)]
         [TestCase("Reading Guide", false)]

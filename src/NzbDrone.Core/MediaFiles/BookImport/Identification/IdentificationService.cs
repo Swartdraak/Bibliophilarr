@@ -41,7 +41,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex GenreLine = new Regex(@"(?:: | \()A LITRPG ADVENTURE\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex FileCopySuffix = new Regex(@"\s+\([1-9][0-9]*\)$", RegexOptions.CultureInvariant);
         private static readonly Regex NumberedSeriesWork = new Regex(@"^[^:]+\s+(?:(?:BOOK|VOLUME|VOL\.?)\s+[0-9]+|0[0-9]{1,2}): (.+)$", RegexOptions.CultureInvariant);
-        private static readonly Regex DistinctWorkScope = new Regex(@"^(?:(?:THE )?(?:LITTLE )?BOOK OF QUOTES|OMNIBUS|BOX(?:ED)? SET|BOOKS? [0-9]+(?:\s*[:–-]\s*| TO )[0-9]+)\b", RegexOptions.CultureInvariant);
+        private static readonly Regex DistinctWorkScope = new Regex(@"^(?:(?:THE )?(?:LITTLE )?BOOK OF QUOTES|OMNIBUS|BOX(?:ED)? SET|BOOKS? [0-9]+(?:\s*[:–-]\s*| TO )[0-9]+|(?:BOOK|VOL(?:UME)?\.?)[\s#]+[0-9]+(?=\s*\)?$))\b", RegexOptions.CultureInvariant);
 
         private readonly ITrackGroupingService _trackGroupingService;
         private readonly IMetadataTagService _metadataTagService;
