@@ -34,9 +34,11 @@ LIVE_TITLE = "Pride and Prejudice"
 @dataclass(frozen=True)
 class LiveBookIdentity:
     book_id: int
+    author_id: int
     foreign_book_id: str
     foreign_edition_id: str
     edition_id: int
+    edition_monitored: bool
 
 
 @dataclass(frozen=True)
@@ -642,12 +644,18 @@ def exercise_catalogue(page, api, base, work, app_data, *, live_provider=None):
 
         saved = checked(api.get(f"/api/v1/book/{book['id']}"), 200, "read_live_provider_book")
         assert saved["foreignBookId"] == book["foreignBookId"] and saved["titleSlug"] == book["titleSlug"]
-        print("add_book: PASS (201 and retrievable matching identity)", flush=True)
+        assert saved["authorId"] == book["authorId"] > 0
+        foreign_edition_id = book["foreignEditionId"]
+        edition_prefixes = (f"{live_provider}:edition:", f"{live_provider}:source-edition:")
+        assert foreign_edition_id.startswith(edition_prefixes) and saved["foreignEditionId"] == foreign_edition_id
+        edition, = [item for item in saved["editions"] if item["foreignEditionId"] == foreign_edition_id]
+        assert edition["id"] > 0
+        live_book = LiveBookIdentity(saved["id"], saved["authorId"], saved["foreignBookId"],
+                                     foreign_edition_id, edition["id"], edition["monitored"])
+        print("add_book: PASS (201 and retrievable matching work and edition)", flush=True)
         if live_provider == "googlebooks":
             # The provider's volume can be print-only. The EPUB fixture has its own typed edition.
-            edition, = [item for item in saved["editions"] if item["foreignEditionId"] == book["foreignEditionId"]]
-            assert edition["id"] > 0 and edition["monitored"] is True
-            live_book = LiveBookIdentity(saved["id"], saved["foreignBookId"], edition["foreignEditionId"], edition["id"])
+            assert edition["monitored"] is True
             book, author = seed_local_catalogue(page, api, base, root, app_data, existing_author_ids=(saved["authorId"],))
     else:
         reason = f"{token_env} is unset or blank" if token_env else "opt-in live mode required"
@@ -675,9 +683,12 @@ def verify_catalogue_after_restart(page, api, base, app_data, state):
     if state.live_book:
         identity = state.live_book
         saved = checked(api.get(f"/api/v1/book/{identity.book_id}"), 200, "read_restarted_live_provider_book")
+        assert saved["authorId"] == identity.author_id
         assert saved["foreignBookId"] == identity.foreign_book_id
+        assert saved["foreignEditionId"] == identity.foreign_edition_id
         edition, = [item for item in saved["editions"] if item["foreignEditionId"] == identity.foreign_edition_id]
-        assert edition["id"] == identity.edition_id and edition["monitored"] is True
+        assert edition["id"] == identity.edition_id and edition["monitored"] is identity.edition_monitored
+        print("live_provider_edition_after_restart: PASS (work, author and selected edition identities)", flush=True)
 
     book = checked(api.get(f"/api/v1/book/{state.book_id}"), 200, "read_restarted_catalogue")
     assert book["foreignBookId"] == state.foreign_book_id and book["titleSlug"] == state.title_slug

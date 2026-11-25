@@ -3,6 +3,7 @@
 import argparse
 from contextlib import closing, contextmanager
 from io import BytesIO
+import json
 import os
 from pathlib import Path
 import re
@@ -688,7 +689,7 @@ def run(binary, evidence, *, live_provider=None):
     print("Browser smoke passed", flush=True)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
@@ -696,12 +697,47 @@ if __name__ == "__main__":
         "--live-provider", nargs="?", const="hardcover", choices=tuple(LIVE_PROVIDER_TOKEN_ENVS),
         help="Opt in to live checks. Bare flag selects Hardcover. See CATALOGUE.md for credentials.",
     )
+    parser.add_argument(
+        "--require-live-provider", action="store_true",
+        help="Require the selected live provider and fail before app startup when its credential is missing.",
+    )
     args = parser.parse_args()
+    if args.require_live_provider and not args.live_provider:
+        parser.error("--require-live-provider needs --live-provider")
     os.umask(0o077)
     args.evidence.mkdir(parents=True, exist_ok=True)
+    if args.require_live_provider:
+        token_env = LIVE_PROVIDER_TOKEN_ENVS[args.live_provider]
+        receipt_path = args.evidence / "live-provider-evidence.json"
+        receipt = {"provider": args.live_provider, "credentialEnvironmentVariable": token_env}
+
+        def record_live_evidence(status, **fields):
+            receipt_path.write_text(json.dumps({**receipt, "status": status, **fields}) + "\n")
+
+        if not __debug__:
+            record_live_evidence("failed", reason="assertions_disabled", appStarted=False)
+            raise SystemExit("Required live verification needs Python assertions enabled. No application was started.")
+
+        if not os.environ.get(token_env, "").strip():
+            record_live_evidence("failed", reason="missing_credential", appStarted=False)
+            raise SystemExit(f"Required credential {token_env} is missing. No application was started.")
+        record_live_evidence("preflight_passed", appStarted=False)
+    app_started = False
     try:
-        run(args.binary.resolve(strict=True), args.evidence, live_provider=args.live_provider)
+        binary = args.binary.resolve(strict=True)
+        app_started = None
+        run(binary, args.evidence, live_provider=args.live_provider)
     except Exception as error:
+        if args.require_live_provider:
+            record_live_evidence("failed", reason="browser_smoke_failed", errorType=type(error).__name__,
+                                 appStarted=app_started)
         # Playwright exceptions can embed request values. Artifacts contain only safe status
         # lines, redacted process logs on failure, and screenshots of the disposable app.
         raise SystemExit(f"Browser smoke failed ({type(error).__name__}). See the last checkpoint.") from None
+    if args.require_live_provider:
+        record_live_evidence("passed", appStarted=True, providerSearch=True, bookAdded=True,
+                             editionPersistedAfterRestart=True)
+
+
+if __name__ == "__main__":
+    main()
