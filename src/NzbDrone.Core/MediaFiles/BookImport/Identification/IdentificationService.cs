@@ -31,6 +31,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         // Lower distance = better match. 0.25 allows reasonably confident matches
         // while preventing false positives from badly tagged files.
         private const double AutoAddAuthorDistanceThreshold = 0.25;
+        private const string MissingNumberedVolumeDetail = "The catalogue match omits the numbered volume in the file title. Select the intended work manually.";
 
         private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
@@ -249,6 +250,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             string providerIdentityConflict = null;
             var providerAuthorUnavailable = false;
 
+            bool AllowsLocalEdition(Edition edition)
+            {
+                var conflict = FindIdentityConflict(edition);
+                if (conflict == MissingNumberedVolumeDetail && idOverrides.Author == null && idOverrides.Book == null)
+                {
+                    // Keep the explanation without blocking any later exact identifier lookup.
+                    localBookRelease.ProviderIdentityConflictDetail = conflict;
+                }
+
+                return conflict == null;
+            }
+
             bool AllowsRemoteEdition(Edition edition)
             {
                 if (FindIdentityConflict(edition) is { } conflict)
@@ -276,7 +289,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var localCandidates = _candidateService.GetDbCandidatesFromTags(localBookRelease, idOverrides, config.IncludeExisting)
                 .Where(candidate => localBookRelease.LocalBooks.All(track => ImportFormat.IsCompatible(track.Path, candidate.Edition)))
-                .Where(candidate => FindIdentityConflict(candidate.Edition) == null)
+                .Where(candidate => AllowsLocalEdition(candidate.Edition))
                 .ToList();
 
             IEnumerable<CandidateEdition> candidateReleases = localCandidates;
@@ -606,6 +619,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 !HasNonconflictingEditionIdentifier(release, edition))
             {
                 _logger.Debug("Skipping library scan candidate {0} because its title contradicts the embedded title and filename", edition);
+
+                var volume = ExplicitSeriesVolume.Match(confirmed);
+                if (volume.Success &&
+                    (volume.Groups[1].Value == NormalizeSubtitleNotation(workTitle) ||
+                     volume.Groups[1].Value == NormalizeSubtitleNotation(editionTitle)))
+                {
+                    return MissingNumberedVolumeDetail;
+                }
+
                 return "Provider candidates disagree with the embedded title and filename. Select the intended work manually.";
             }
 

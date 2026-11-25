@@ -520,6 +520,21 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.IdentificationHoldReason.Should().Be(shouldMatch ? null : LibraryImportHoldReason.ProviderIdentityConflict);
         }
 
+        [Test]
+        public void should_retain_a_local_numbered_volume_conflict_without_disabling_fallback()
+        {
+            const string title = "The Amber Moon (Book 2)";
+            GivenRetryCandidate("The Amber Moon");
+            var tracks = CreateRetryTracks(title, $"Test Author - {title}");
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.IdentificationHoldReason.Should().BeNull();
+            release.RejectedProviderCandidates.Should().BeFalse();
+            release.ProviderIdentityConflictDetail.Should().Contain("numbered volume");
+        }
+
         [TestCase("Study Guide", false)]
         [TestCase("Teacher’s Guide, with Poster", false)]
         [TestCase("Reading Guide", false)]

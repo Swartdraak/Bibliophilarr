@@ -107,7 +107,8 @@ process.
   an earlier hold.
 - Hold an automatic library match when a corroborated title ends in an
   explicit book or volume number and the proposed work drops that number
-  without a matching edition identifier.
+  without a matching edition identifier. Explain the numbered-volume conflict
+  if no exact match is found.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked

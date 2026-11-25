@@ -753,7 +753,9 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             if (localEdition.Edition == null)
             {
-                var reason = localEdition.IdentificationHoldReason ?? LibraryImportHoldReason.NoAcceptedWork;
+                var reason = localEdition.IdentificationHoldReason ?? (localEdition.ProviderIdentityConflictDetail == null
+                    ? LibraryImportHoldReason.NoAcceptedWork
+                    : LibraryImportHoldReason.ProviderIdentityConflict);
                 var message = reason switch
                 {
                     LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",

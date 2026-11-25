@@ -363,6 +363,44 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             secondary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_a_local_identity_conflict_only_if_exact_fallback_cannot_resolve_it(bool canRecover)
+        {
+            const string description = "The catalogue match omits the numbered volume.";
+            const string isbn = "9781442482890";
+            _idConfig.NewDownload = false;
+            _idConfig.IncludeExisting = true;
+            GivenReliableFileIsbn();
+            GivenRealBookMatchPolicy();
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                    new List<LocalEdition> { new LocalEdition(tracks) { ProviderIdentityConflictDetail = description } });
+
+            var (work, edition) = BuildMatch();
+            edition.ForeignEditionId = "openlibrary:edition:OL321M";
+            edition.Title = work.Title;
+            edition.Isbn13 = isbn;
+            var (_, provider) = GivenConfiguredProviders(new List<Book>(), new List<Book>());
+            provider.Setup(search => search.SearchByIsbn(isbn)).Returns(canRecover ? new List<Book> { work } : new List<Book>());
+
+            var decision = GetSingleDecision();
+
+            provider.Verify(search => search.SearchByIsbn(isbn), Times.Once());
+            if (canRecover)
+            {
+                decision.Approved.Should().BeTrue();
+                decision.Item.Edition.Should().BeSameAs(edition);
+            }
+            else
+            {
+                var rejection = decision.Rejections.Should().ContainSingle().Which;
+                rejection.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+                rejection.Reason.Should().Be(description);
+            }
+        }
+
         [TestCase("summary")]
         [TestCase("wrong work")]
         [TestCase("untyped")]
