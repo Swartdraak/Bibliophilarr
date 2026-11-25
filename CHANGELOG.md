@@ -151,6 +151,8 @@ process.
   and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
+- Disable Manual Import while selected rows are being checked or have a rejected
+  path or edition. Show the reason so the user can correct or deselect the row.
 - Keep unavailable edition selections visible in Manual Import and ask the
   user to select the edition again.
 - Hold an unresolved manual-import edition selection and continue importing
