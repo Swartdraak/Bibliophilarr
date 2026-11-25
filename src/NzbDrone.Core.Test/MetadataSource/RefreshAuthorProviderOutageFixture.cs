@@ -23,6 +23,8 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
 using NzbDrone.Core.MetadataSource.Hardcover;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
+using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 using NzbDrone.Core.ProgressMessaging;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
@@ -189,6 +191,80 @@ namespace NzbDrone.Core.Test.MetadataSource
                 message.Contains(privateAuthorName) || message.Contains(privateKey));
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(3));
             http.VerifyNoOtherCalls();
+            Mocker.GetMock<ICatalogueIdentityRepository>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once());
+            author.LastInfoSync.Should().Be(lastSync);
+        }
+
+        [Test]
+        public void should_report_open_library_work_offset_distinct_count_and_total_without_changing_the_catalogue()
+        {
+            const string providerAuthorId = "OL26320A";
+            const string authorName = "Private Open Library Fixture Author";
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Warn, LogLevel.Error, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(RefreshAuthorService)));
+            Mocker.SetConstant<TimeProvider>(TimeProvider.System);
+
+            var lastSync = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var author = new Author
+            {
+                Id = 42,
+                AuthorMetadataId = 21,
+                LastInfoSync = lastSync,
+                Metadata = new AuthorMetadata
+                {
+                    Id = 21,
+                    Name = authorName,
+                    ForeignAuthorId = $"openlibrary:author:{providerAuthorId}"
+                }
+            };
+            var ids = new List<int> { author.Id };
+            Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthors(ids)).Returns(new List<Author> { author });
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.RescanAfterRefresh).Returns(RescanAfterRefreshType.Never);
+            config.SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
+
+            var client = Mocker.GetMock<IOpenLibraryClient>();
+            client.Setup(api => api.GetAuthor(providerAuthorId, true))
+                .Returns(new OlAuthorResource { Key = $"/authors/{providerAuthorId}", Name = authorName });
+            client.Setup(api => api.GetAuthorWorks(providerAuthorId, 100, 0))
+                .Returns(new OlAuthorWorksResponse
+                {
+                    Size = 4,
+                    Entries = new List<OlWorkResource>
+                    {
+                        new () { Key = "/works/OL31W" },
+                        new () { Key = "/works/OL31W" },
+                        new () { Key = "/works/OL32W" }
+                    }
+                });
+            client.Setup(api => api.GetAuthorWorks(providerAuthorId, 100, 3))
+                .Returns(new OlAuthorWorksResponse { Size = 4 });
+            client.Setup(api => api.Search($"author_key:{providerAuthorId}", 100, 0))
+                .Returns(new OlSearchResponse { NumFound = 4, NumFoundExact = false });
+
+            var provider = Mocker.Resolve<OpenLibraryProvider>();
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .Setup(registry => registry.GetProviders()).Returns(new IMetadataProvider[] { provider });
+            Mocker.SetConstant<IMetadataProviderOrchestrator>(Mocker.Resolve<MetadataProviderOrchestrator>());
+
+            Subject.Execute(new BulkRefreshAuthorCommand(ids));
+
+            messages.Logs.Should().ContainSingle(message => message.Contains(
+                "Author bibliography for local author 42 from OpenLibrary ended at offset 3 with 2 distinct entries of 4 reported.",
+                StringComparison.Ordinal));
+            messages.Logs.Should().NotContain(message => message.Contains(providerAuthorId) || message.Contains(authorName));
+            client.Verify(api => api.GetAuthor(providerAuthorId, true), Times.Once());
+            client.Verify(api => api.GetAuthorWorks(providerAuthorId, 100, 0), Times.Once());
+            client.Verify(api => api.GetAuthorWorks(providerAuthorId, 100, 3), Times.Exactly(2));
+            client.Verify(api => api.Search($"author_key:{providerAuthorId}", 100, 0), Times.Once());
+            client.VerifyNoOtherCalls();
             Mocker.GetMock<ICatalogueIdentityRepository>().VerifyNoOtherCalls();
             Mocker.GetMock<IAuthorMetadataService>().VerifyNoOtherCalls();
             Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
