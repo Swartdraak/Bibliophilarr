@@ -1317,6 +1317,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         [TestCase("short-count")]
         [TestCase("invalid-row")]
         [TestCase("missing-known-link")]
+        [TestCase("short-count-description")]
         public void should_refresh_verified_works_without_writing_incomplete_series(string failure)
         {
             const string authorId = "hardcover:author:123";
@@ -1350,7 +1351,7 @@ namespace NzbDrone.Core.Test.MetadataSource
                         }
 
                         var memberships = new JArray(row);
-                        var payload = BuildAuthorSeriesResponse(memberships, failure == "short-count" ? 2 : 1);
+                        var payload = BuildAuthorSeriesResponse(memberships, failure is "short-count" or "short-count-description" ? 2 : 1);
                         if (failure == "partial-errors")
                         {
                             payload["errors"] = JArray.Parse("""[{"message":"Partial series query"}]""");
@@ -1361,7 +1362,13 @@ namespace NzbDrone.Core.Test.MetadataSource
 
                     var offset = body.SelectToken("variables.offset").Value<int>();
                     requests.Add($"works:{offset}");
-                    return CreateJsonResponse(request, BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>()));
+                    var page = BuildAuthorPage(offset == 0 ? new[] { 1 } : Array.Empty<int>());
+                    if (offset == 0 && failure == "short-count-description")
+                    {
+                        page.SelectToken("data.authors[0].contributions[0].book.book_series[0].series")["description"] = "Exact series description";
+                    }
+
+                    return CreateJsonResponse(request, page);
                 });
 
             Mocker.GetMock<IMetadataProviderRegistry>()
@@ -1412,7 +1419,14 @@ namespace NzbDrone.Core.Test.MetadataSource
             requests.Should().Equal("works:0", "works:1", "series");
             books.Verify(service => service.InsertBibliographyWorks(It.Is<List<Book>>(works =>
                 works.Count == 1 && works[0].ForeignBookId == bookId)), Times.Once);
-            Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
+            var seriesRefresh = Mocker.GetMock<IRefreshSeriesService>();
+            if (failure == "short-count-description")
+            {
+                seriesRefresh.Verify(service => service.FillMissingHardcoverDescriptions(stored, It.Is<IReadOnlyDictionary<string, string>>(descriptions =>
+                    descriptions.Count == 1 && descriptions["hardcover:series:789"] == "Exact series description")), Times.Once());
+            }
+
+            seriesRefresh.VerifyNoOtherCalls();
             Mocker.GetMock<ICommandResultReporter>()
                 .Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Never);
             Mocker.GetMock<IEventAggregator>()
@@ -1560,6 +1574,40 @@ namespace NzbDrone.Core.Test.MetadataSource
             series.Values.Should().OnlyContain(item => item.LinkItems.Value.Count == 1 &&
                 item.LinkItems.Value[0].Book.Value.ForeignBookId == "hardcover:work:543");
             var http = Mocker.GetMock<IHttpClient>();
+            http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+        }
+
+        [TestCase(null, "Unique description")]
+        [TestCase("   ", "Unique description")]
+        [TestCase("Conflicting description", null)]
+        public void should_keep_only_one_agreed_description_for_an_incomplete_hardcover_series(string firstDescription, string expected)
+        {
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Post<JObject>(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                {
+                    return CreateJsonResponse(request, BuildAuthorSeriesResponse(new JArray(), 2));
+                }
+
+                var offset = body.SelectToken("variables.offset").Value<int>();
+                var page = BuildAuthorPage(offset == 0 ? new[] { 1, 2 } : Array.Empty<int>());
+                if (offset == 0)
+                {
+                    page.SelectToken("data.authors[0].contributions[0].book.book_series[0].series")["description"] = firstDescription;
+                    page.SelectToken("data.authors[0].contributions[1].book.book_series[0].series")["description"] = "  Unique description  ";
+                }
+
+                return CreateJsonResponse(request, page);
+            });
+
+            var incoming = Subject.GetAuthorInfo("hardcover:author:123");
+
+            incoming.RemoteSeriesComplete.Should().BeFalse();
+            incoming.Series.Value.Should().ContainSingle().Which.Description.Should().Be(expected);
+            incoming.Books.Value.Should().HaveCount(2);
             http.Verify(client => client.Post<JObject>(It.IsAny<HttpRequest>()), Times.Exactly(3));
             http.VerifyNoOtherCalls();
         }

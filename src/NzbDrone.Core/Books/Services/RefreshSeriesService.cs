@@ -11,6 +11,7 @@ namespace NzbDrone.Core.Books
     public interface IRefreshSeriesService
     {
         bool RefreshSeriesInfo(int authorMetadataId, List<Series> remoteBooks, Author remoteData, bool forceBookRefresh, bool forceUpdateFileTags, DateTime? lastUpdate);
+        void FillMissingHardcoverDescriptions(Author author, IReadOnlyDictionary<string, string> descriptions);
     }
 
     public class RefreshSeriesService : RefreshEntityServiceBase<Series, SeriesBookLink>, IRefreshSeriesService
@@ -172,6 +173,25 @@ namespace NzbDrone.Core.Books
 
                 throw new InvalidOperationException("Series alias ownership changed repeatedly during refresh.");
             });
+        }
+
+        public void FillMissingHardcoverDescriptions(Author author, IReadOnlyDictionary<string, string> descriptions)
+        {
+            WithRefreshGates(new[] { $"author:{author.AuthorMetadataId}" }, () =>
+                WithRefreshGates(descriptions.Keys.Select(GetSeriesGateKey), () =>
+                {
+                    var updated = false;
+                    foreach (var series in _seriesService.GetByAuthorMetadataId(author.AuthorMetadataId))
+                    {
+                        if (series.Description.IsNullOrWhiteSpace() &&
+                            descriptions.TryGetValue(series.ForeignSeriesId, out var description))
+                        {
+                            updated |= _seriesService.TryFillHardcoverDescription(author, series, description);
+                        }
+                    }
+
+                    return updated;
+                }));
         }
 
         private static string GetSeriesGateKey(string id)

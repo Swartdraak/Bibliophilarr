@@ -154,6 +154,18 @@ namespace NzbDrone.Core.Books
                 var incumbent = local.Metadata.Value;
                 var incoming = data.Metadata.Value;
                 var primaryProviderAuthorId = incoming.ForeignAuthorId;
+                data.PartialHardcoverSeriesDescriptions = null;
+                if (data.RemoteSeriesComplete == false && primaryProviderAuthorId == incumbent.ForeignAuthorId &&
+                    CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, primaryProviderAuthorId, null)?.Provider == "Hardcover")
+                {
+                    data.PartialHardcoverSeriesDescriptions = (data.Series?.Value ?? new List<Series>())
+                        .Where(series => series?.ForeignSeriesId.IsNotNullOrWhiteSpace() == true && series.Description.IsNotNullOrWhiteSpace())
+                        .GroupBy(series => series.ForeignSeriesId, StringComparer.Ordinal)
+                        .Select(group => (Id: group.Key, Description: group.Select(series => series.Description.Trim()).Distinct(StringComparer.Ordinal).ExclusiveOrDefault()))
+                        .Where(candidate => candidate.Description != null)
+                        .ToDictionary(candidate => candidate.Id, candidate => candidate.Description, StringComparer.Ordinal);
+                }
+
                 if (Guid.TryParseExact(incumbent.CanonicalId, "N", out _) && incumbent.ForeignAuthorId != incoming.ForeignAuthorId &&
                     !PreserveCatalogueAuthor(incumbent, incoming))
                 {
@@ -317,6 +329,7 @@ namespace NzbDrone.Core.Books
         private static void ApplyRemoteSeries(Author local, Author remote)
         {
             local.RemoteSeriesComplete = remote.RemoteSeriesComplete;
+            local.PartialHardcoverSeriesDescriptions = remote.PartialHardcoverSeriesDescriptions;
             if (remote.RemoteSeriesComplete != false)
             {
                 local.Series = remote.Series?.Value ?? new List<Series>();
@@ -342,6 +355,7 @@ namespace NzbDrone.Core.Books
 
             // Do the standard update
             UpdateEntity(local, remote);
+            local.PartialHardcoverSeriesDescriptions = null;
 
             // We know we need to update tags as author id has changed
             return UpdateResult.UpdateTags;
@@ -351,6 +365,7 @@ namespace NzbDrone.Core.Books
         {
             _logger.Warn($"Author {local} was replaced with {remote} because the original was a duplicate.");
             target.RemoteSeriesComplete = remote.RemoteSeriesComplete;
+            target.PartialHardcoverSeriesDescriptions = null;
             if (remote.RemoteSeriesComplete == true)
             {
                 ApplyRemoteSeries(target, remote);
@@ -774,6 +789,10 @@ namespace NzbDrone.Core.Books
                 {
                     _refreshSeriesService.RefreshSeriesInfo(entity.AuthorMetadataId, series, entity, false, false, null);
                 }
+            }
+            else if (entity.PartialHardcoverSeriesDescriptions is { Count: > 0 } descriptions)
+            {
+                _refreshSeriesService.FillMissingHardcoverDescriptions(entity, descriptions);
             }
 
             _eventAggregator.PublishEvent(new AuthorRefreshCompleteEvent(entity));

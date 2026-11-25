@@ -2081,7 +2081,9 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     {
                         ForeignSeriesId = $"hardcover:series:{firstSeries.SelectToken("series.id")?.Value<int>()}",
                         Title = seriesName,
-                        Description = firstSeries.SelectToken("series.description")?.Value<string>(),
+                        Description = firstSeries.SelectToken("series.description") is JValue { Type: JTokenType.String } seriesDescription
+                            ? seriesDescription.Value<string>()
+                            : null,
                         WorkCount = firstSeries.SelectToken("series.books_count")?.Value<int>() ?? 0,
                         PrimaryWorkCount = firstSeries.SelectToken("series.primary_books_count")?.Value<int>() ?? 0,
                         Numbered = true
@@ -2740,6 +2742,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             foreach (var group in grouped)
             {
                 var template = group.First().Series.Value;
+                var description = group.Select(link => link.Series.Value.Description)
+                    .Where(value => value.IsNotNullOrWhiteSpace())
+                    .Select(value => value.Trim())
+                    .Distinct(StringComparer.Ordinal)
+                    .ExclusiveOrDefault();
                 var dedupedLinks = group
                     .GroupBy(link => link.Book.Value.ForeignBookId, StringComparer.OrdinalIgnoreCase)
                     .Select(linkGroup => linkGroup
@@ -2752,7 +2759,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 {
                     ForeignSeriesId = template.ForeignSeriesId,
                     Title = template.Title,
-                    Description = template.Description,
+                    Description = description,
                     Numbered = dedupedLinks.Any(link => link.Position.IsNotNullOrWhiteSpace()),
                     WorkCount = dedupedLinks.Count,
                     PrimaryWorkCount = dedupedLinks.Count(link => link.IsPrimary),

@@ -47,6 +47,9 @@ namespace NzbDrone.Core.Books
         [MemberwiseEqualityIgnore]
         public bool? RemoteSeriesComplete { get; set; }
 
+        [MemberwiseEqualityIgnore]
+        internal IReadOnlyDictionary<string, string> PartialHardcoverSeriesDescriptions { get; set; }
+
         //compatibility properties
         [MemberwiseEqualityIgnore]
         public string Name
