@@ -82,8 +82,9 @@ process.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
 - When Open Library returns an incomplete bibliography, use stored Hardcover
-  works to suggest ISBNs if the existing author's live bibliography is
-  unavailable. Reuse that author only after both providers verify two works.
+  works to suggest ISBNs if a connection failure interrupts the existing
+  author's live bibliography. Reuse that author only after both providers
+  verify two works.
 - Preserve stored titles and their matching keys when a verified refresh omits
   the work or edition title. Avoid unnecessary file retagging for that omission.
 - Skip untitled Hardcover search results and defer importing a new author

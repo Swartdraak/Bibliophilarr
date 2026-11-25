@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using NLog;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Common.Http;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Messaging.Commands;
@@ -306,7 +305,9 @@ namespace NzbDrone.Core.Books
             }
             catch (MetadataProviderUnavailableException ex) when (canUseStoredWorks &&
                 ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
-                ex.EntityId == hardcover.ForeignAuthorId && ex.InnerException is not TooManyRequestsException)
+                MetadataProviderOrchestrator.IsTransportError(ex) &&
+                CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, ex.EntityId, null) is { Provider: "Hardcover" } reported &&
+                reported.ProviderId == GetAuthority(hardcover).ProviderId)
             {
                 // Stored works suggest ISBNs. Both providers must still verify each author's credit.
                 return hardcover.Books?.Value;
