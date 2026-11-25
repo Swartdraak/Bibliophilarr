@@ -16,6 +16,7 @@ process.
 
 ### Fixed
 
+- Clear hidden Bookshelf selections when a filter removes the selected authors.
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
 - Remove tracked files when explicitly deleting their book and report failures
   before removing the book from the catalogue.
