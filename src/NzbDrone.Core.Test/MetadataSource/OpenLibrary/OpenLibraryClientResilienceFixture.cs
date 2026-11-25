@@ -127,6 +127,52 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
+        public void should_stop_bounded_author_profiles_after_the_first_rate_limit_response()
+        {
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
+            config.SetupGet(settings => settings.OpenLibraryWorkRetryBudget).Returns(1);
+            config.SetupGet(settings => settings.OpenLibraryWorkTimeoutSeconds).Returns(45);
+            var http = Mocker.GetMock<IHttpClient>();
+            var requests = new List<HttpRequest>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    requests.Add(request);
+                    return requests.Count == 1
+                        ? new HttpResponse(request, new HttpHeader { ["Retry-After"] = "0" }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests)
+                        : new HttpResponse(request, new HttpHeader(), """{"key":"/authors/OL42A","name":"Fixture Author"}""");
+                });
+
+            var provider = new OpenLibraryProvider(Subject, config.Object, TestLogger);
+            provider.GetAuthorProfileMetadata("OL42A").Should().BeNull();
+            provider.GetAuthorProfileMetadata("OL84A").Should().BeNull();
+
+            var sent = requests.Should().ContainSingle().Which;
+            sent.Url.Path.Should().Be("/authors/OL42A.json");
+            sent.AllowAutoRedirect.Should().BeFalse();
+            sent.RateLimit.Should().Be(TimeSpan.FromSeconds(1));
+            sent.RateLimitKey.Should().Be("OpenLibrary");
+            sent.RequestTimeout.Should().Be(TimeSpan.FromSeconds(10));
+            ExceptionVerification.ExpectedWarns("OpenLibrary rate-limit (429) exceeded retry budget for openlibrary.author-profile");
+        }
+
+        [Test]
+        public void should_keep_the_configured_retry_for_the_normal_author_fetch()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(settings => settings.OpenLibraryWorkRetryBudget).Returns(1);
+            var endpoint = new HttpRequest("https://openlibrary.org/authors/OL42A.json");
+            var http = Mocker.GetMock<IHttpClient>();
+            http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(endpoint, new HttpHeader { ["Retry-After"] = "0" }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests))
+                .Returns(new HttpResponse(endpoint, new HttpHeader(), """{"key":"/authors/OL42A","name":"Fixture Author"}"""));
+
+            Subject.GetAuthor("OL42A", confirmNotFound: true).Key.Should().Be("/authors/OL42A");
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Url.Path == "/authors/OL42A.json")), Times.Exactly(2));
+        }
+
+        [Test]
         public void search_should_retry_after_rate_limit_and_succeed()
         {
             var first = new HttpResponse(new HttpRequest("https://openlibrary.org/search.json"), new HttpHeader { { "Retry-After", "0" } }, Array.Empty<byte>(), System.Net.HttpStatusCode.TooManyRequests);

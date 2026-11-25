@@ -61,7 +61,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var resource = _client.GetAuthor(expectedId, confirmNotFound: false);
+            var resource = _client.GetAuthorProfile(expectedId);
             var key = resource?.Key;
             var returnedId = key?.StartsWith(authorPath, StringComparison.OrdinalIgnoreCase) == true ? key[authorPath.Length..] : key;
             return OpenLibraryIdNormalizer.NormalizeAuthorId(returnedId) == expectedId

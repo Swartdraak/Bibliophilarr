@@ -22,6 +22,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         OlWorkResource GetWork(string olid, bool verification);
         OlAuthorResource GetAuthor(string olid);
         OlAuthorResource GetAuthor(string olid, bool confirmNotFound);
+        OlAuthorResource GetAuthorProfile(string olid);
         OlEditionResource GetEditionByIsbn(string isbn);
         OlEditionResource GetExactEditionByIsbn(string isbn);
         OlEditionResource GetExactEditionByIsbn(string isbn, bool verification);
@@ -184,15 +185,33 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibrary get author: {0}", olid);
 
-            var cleanKey = StripKeyPrefix(olid);
+            var request = BuildAuthorRequest(StripKeyPrefix(olid));
+            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work), confirmNotFound ? olid : null);
+        }
+
+        public OlAuthorResource GetAuthorProfile(string olid)
+        {
+            var authorId = OpenLibraryIdNormalizer.NormalizeAuthorId(olid);
+            if (authorId == null)
+            {
+                return null;
+            }
+
+            var request = BuildAuthorRequest(authorId);
+            request.AllowAutoRedirect = false;
+            request.RequestTimeout = TimeSpan.FromSeconds(Math.Min(10, GetTimeoutSeconds(OperationClass.Work)));
+            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author-profile", request, 0, bounded: true);
+        }
+
+        private HttpRequest BuildAuthorRequest(string authorId)
+        {
             var request = _requestBuilder.Create()
-                .SetSegment("route", $"authors/{cleanKey}.json")
+                .SetSegment("route", $"authors/{authorId}.json")
                 .Build();
 
             request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
-
-            return ExecuteWithRateLimitRetry<OlAuthorResource>("openlibrary.author", request, GetRetryBudget(OperationClass.Work), confirmNotFound ? olid : null);
+            return request;
         }
 
         public OlEditionResource GetEditionByIsbn(string isbn) => GetEditionByIsbn(isbn, requireMatchingRedirect: false);

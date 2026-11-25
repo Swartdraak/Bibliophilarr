@@ -62,7 +62,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         [TestCase(null, false)]
         public void should_fetch_only_the_exact_author_profile_without_paging_works(string responseKey, bool matches)
         {
-            _clientMock.Setup(client => client.GetAuthor("OL42A", false))
+            _clientMock.Setup(client => client.GetAuthorProfile("OL42A"))
                 .Returns(new OlAuthorResource
                 {
                     Key = responseKey,
@@ -87,7 +87,8 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
                 profile.Should().BeNull();
             }
 
-            _clientMock.Verify(client => client.GetAuthor("OL42A", false), Times.Once());
+            _clientMock.Verify(client => client.GetAuthorProfile("OL42A"), Times.Once());
+            _clientMock.Verify(client => client.GetAuthor(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
             _clientMock.Verify(client => client.GetAuthorWorks(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
             _clientMock.Verify(client => client.Search(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never());
         }
