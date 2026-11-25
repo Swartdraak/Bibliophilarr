@@ -2,7 +2,6 @@ using System.Linq;
 using NLog;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
-using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Parser.Model;
@@ -14,19 +13,16 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Specifications
     public class UpgradeSpecification : IImportDecisionEngineSpecification<LocalBook>
     {
         private readonly IConfigService _configService;
-        private readonly ICustomFormatCalculationService _customFormatCalculationService;
         private readonly IAuthorFormatProfileService _formatProfileService;
         private readonly IQualityProfileService _qualityProfileService;
         private readonly Logger _logger;
 
         public UpgradeSpecification(IConfigService configService,
-                                    ICustomFormatCalculationService customFormatCalculationService,
                                     IAuthorFormatProfileService formatProfileService,
                                     IQualityProfileService qualityProfileService,
                                     Logger logger)
         {
             _configService = configService;
-            _customFormatCalculationService = customFormatCalculationService;
             _formatProfileService = formatProfileService;
             _qualityProfileService = qualityProfileService;
             _logger = logger;
