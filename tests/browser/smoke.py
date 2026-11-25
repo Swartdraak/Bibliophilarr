@@ -689,7 +689,7 @@ def run(binary, evidence, *, live_provider=None):
     print("Browser smoke passed", flush=True)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
@@ -721,14 +721,23 @@ if __name__ == "__main__":
         if not os.environ.get(token_env, "").strip():
             record_live_evidence("failed", reason="missing_credential", appStarted=False)
             raise SystemExit(f"Required credential {token_env} is missing. No application was started.")
-        record_live_evidence("started")
+        record_live_evidence("preflight_passed", appStarted=False)
+    app_started = False
     try:
-        run(args.binary.resolve(strict=True), args.evidence, live_provider=args.live_provider)
+        binary = args.binary.resolve(strict=True)
+        app_started = None
+        run(binary, args.evidence, live_provider=args.live_provider)
     except Exception as error:
         if args.require_live_provider:
-            record_live_evidence("failed", reason="browser_smoke_failed", errorType=type(error).__name__)
+            record_live_evidence("failed", reason="browser_smoke_failed", errorType=type(error).__name__,
+                                 appStarted=app_started)
         # Playwright exceptions can embed request values. Artifacts contain only safe status
         # lines, redacted process logs on failure, and screenshots of the disposable app.
         raise SystemExit(f"Browser smoke failed ({type(error).__name__}). See the last checkpoint.") from None
     if args.require_live_provider:
-        record_live_evidence("passed", providerSearch=True, bookAdded=True, editionPersistedAfterRestart=True)
+        record_live_evidence("passed", appStarted=True, providerSearch=True, bookAdded=True,
+                             editionPersistedAfterRestart=True)
+
+
+if __name__ == "__main__":
+    main()

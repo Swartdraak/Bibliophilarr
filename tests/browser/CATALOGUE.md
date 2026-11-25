@@ -47,6 +47,9 @@ runs the offline workflow. Add `--require-live-provider` to an explicit live
 run when the evidence must include that provider. A missing credential fails
 before starting the app. The redacted `live-provider-evidence.json` receipt
 records whether the run completed search, add, and signed edition persistence.
+The `preflight_passed` status only establishes credential and assertion checks.
+The `appStarted` field is false when the application is known to have not started,
+true on successful completion, and null when a failed run leaves startup unverified.
 Run with Python assertions enabled and retain the candidate commit and package
 manifest alongside the receipt.
 

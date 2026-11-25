@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import catalogue_workflow as catalogue
+import smoke
 
 
 class StrictLiveEvidence(unittest.TestCase):
@@ -51,6 +52,63 @@ class StrictLiveEvidence(unittest.TestCase):
             receipt = json.loads((evidence / "live-provider-evidence.json").read_text())
             self.assertEqual(receipt["reason"], "assertions_disabled")
             self.assertIs(receipt["appStarted"], False)
+
+    def test_missing_binary_is_reported_before_starting_the_app(self):
+        with TemporaryDirectory() as temp, patch.dict(os.environ, {"HARDCOVER_API_KEY": "synthetic"}, clear=True):
+            evidence = Path(temp) / "evidence"
+            result = subprocess.run(
+                [sys.executable, "-B", str(Path(__file__).with_name("smoke.py")),
+                 "--binary", str(Path(temp) / "missing-binary"), "--evidence", str(evidence),
+                 "--live-provider", "hardcover", "--require-live-provider"],
+                capture_output=True, text=True, timeout=10, check=False,
+            )
+            self.assertNotEqual(0, result.returncode)
+            receipt = json.loads((evidence / "live-provider-evidence.json").read_text())
+            self.assertEqual(receipt["reason"], "browser_smoke_failed")
+            self.assertEqual(receipt["errorType"], "FileNotFoundError")
+            self.assertIs(receipt["appStarted"], False)
+
+    def test_required_live_receipt_distinguishes_preflight_success_and_unknown_start(self):
+        synthetic_token = "restricted-fixture-credential"
+        for outcome in (None, RuntimeError(synthetic_token)):
+            with self.subTest(run_succeeded=outcome is None), TemporaryDirectory() as temp:
+                binary = Path(temp) / "fixture-binary"
+                binary.touch()
+                evidence = Path(temp) / "evidence"
+                receipt_path = evidence / "live-provider-evidence.json"
+                args = ["smoke.py", "--binary", str(binary), "--evidence", str(evidence),
+                        "--live-provider", "googlebooks", "--require-live-provider"]
+
+                preflights = []
+
+                def synthetic_run(*_args, **_kwargs):
+                    preflights.append(json.loads(receipt_path.read_text()))
+                    if outcome is not None:
+                        raise outcome
+
+                with patch("sys.argv", args), patch.dict(os.environ, {"GOOGLE_BOOKS_API_KEY": synthetic_token}, clear=True):
+                    with patch.object(smoke.os, "umask"), patch.object(smoke, "run", side_effect=synthetic_run) as run:
+                        if outcome is None:
+                            smoke.main()
+                        else:
+                            with self.assertRaises(SystemExit) as error:
+                                smoke.main()
+                            self.assertNotIn(synthetic_token, str(error.exception))
+                    run.assert_called_once_with(binary.resolve(), evidence, live_provider="googlebooks")
+
+                preflight, = preflights
+                self.assertEqual(preflight["status"], "preflight_passed")
+                self.assertIs(preflight["appStarted"], False)
+                receipt = json.loads(receipt_path.read_text())
+                self.assertNotIn(synthetic_token, receipt_path.read_text())
+                if outcome is None:
+                    self.assertEqual(receipt["status"], "passed")
+                    self.assertIs(receipt["appStarted"], True)
+                    self.assertIs(receipt["editionPersistedAfterRestart"], True)
+                else:
+                    self.assertEqual(receipt["status"], "failed")
+                    self.assertIn("appStarted", receipt)
+                    self.assertIsNone(receipt["appStarted"])
 
     def test_hardcover_work_and_selected_edition_are_checked_on_signed_restart(self):
         book = {"id": 4, "authorId": 7, "titleSlug": "fixture-work", "title": "Fixture",
