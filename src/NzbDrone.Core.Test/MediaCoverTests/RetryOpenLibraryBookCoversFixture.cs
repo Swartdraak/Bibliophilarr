@@ -16,11 +16,24 @@ namespace NzbDrone.Core.Test.MediaCoverTests
     [TestFixture]
     public class RetryOpenLibraryBookCoversFixture : CoreTest<RetryOpenLibraryBookCoversService>
     {
+        private sealed class TickClock : TimeProvider
+        {
+            public long ElapsedTicks { get; set; }
+            public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+            public override long GetTimestamp() => ElapsedTicks;
+        }
+
+        private TickClock _clock;
+
         [SetUp]
         public void Setup()
         {
+            _clock = new TickClock();
+            Mocker.SetConstant<TimeProvider>(_clock);
             Mocker.GetMock<IConfigService>().SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
             Mocker.GetMock<IOpenLibraryBookCoverCache>().Setup(cache => cache.IsMissing(It.IsAny<int>(), It.IsAny<string>())).Returns(true);
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.GetArtworkRetryPage(It.IsAny<int>(), It.IsAny<int>())).Returns(new List<Author>());
+            Mocker.GetMock<IOpenLibraryAuthorPortraitCache>().Setup(cache => cache.IsMissing(It.IsAny<int>(), It.IsAny<string>())).Returns(true);
         }
 
         [TestCase(false, false)]
@@ -34,9 +47,138 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Mocker.GetMock<IBookRepository>().VerifyNoOtherCalls();
             Mocker.GetMock<IEditionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorRepository>().VerifyNoOtherCalls();
+            Mocker.GetMock<IOpenLibraryAuthorPortraitCache>().VerifyNoOtherCalls();
             Mocker.GetMock<IOpenLibraryBookCoverCache>().Verify(
                 cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
                 Times.Never);
+        }
+
+        [Test]
+        public void should_share_four_requests_with_one_portrait_and_resume_both_cursors_after_cooldown()
+        {
+            var books = Enumerable.Range(1, 6).Select(StoredBook).ToList();
+            var editions = books.Select(book => StoredEdition(book)).ToList();
+            var authors = new List<Author> { PortraitAuthor(41), PortraitAuthor(42) };
+            var bookRepository = Mocker.GetMock<IBookRepository>();
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(3, 64)).Returns(books.Skip(3).ToList());
+            var authorRepository = Mocker.GetMock<IAuthorRepository>();
+            authorRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(authors);
+            authorRepository.Setup(repository => repository.GetArtworkRetryPage(41, 64)).Returns(authors.Skip(1).ToList());
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(editions);
+
+            var attempted = new List<int>();
+            var bookCache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
+            bookCache.SetupSequence(cache => cache.IsCoolingDown).Returns(true).Returns(false).Returns(false);
+            bookCache.Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Callback<int, string, string, Func<bool>, TimeSpan>((id, _, _, _, _) => attempted.Add(id))
+                .Returns(OpenLibraryCoverRecovery.Recovered);
+
+            Mocker.GetMock<IOpenLibraryAuthorPortraitCache>()
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan>((id, _, _, stillSelected, timeout) =>
+                {
+                    stillSelected().Should().BeTrue();
+                    timeout.Should().Be(TimeSpan.FromSeconds(5));
+                    attempted.Add(id);
+                    return OpenLibraryCoverRecovery.Recovered;
+                });
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            attempted.Should().BeEmpty();
+            bookRepository.VerifyNoOtherCalls();
+            authorRepository.VerifyNoOtherCalls();
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            attempted.Should().Equal(1, 41, 2, 3);
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            attempted.Should().Equal(1, 41, 2, 3, 42, 4, 5, 6);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(3, 64), Times.Once);
+            authorRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Once);
+            authorRepository.Verify(repository => repository.GetArtworkRetryPage(41, 64), Times.Once);
+        }
+
+        [Test]
+        public void should_stop_after_slow_or_deferred_attempts_and_retry_an_author_without_advancing_its_cursor()
+        {
+            var book = StoredBook(1);
+            var nextBook = StoredBook(2);
+            var edition = StoredEdition(book);
+            var author = PortraitAuthor(41);
+            var bookRepository = Mocker.GetMock<IBookRepository>();
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book> { book, nextBook });
+            bookRepository.Setup(repository => repository.GetArtworkRetryPage(1, 64)).Returns(new List<Book>());
+            var authorRepository = Mocker.GetMock<IAuthorRepository>();
+            authorRepository.Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Author> { author });
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(new List<Edition> { edition });
+
+            Mocker.GetMock<IOpenLibraryBookCoverCache>()
+                .Setup(cache => cache.TryRecover(1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Callback(() => _clock.ElapsedTicks += TimeSpan.FromSeconds(10).Ticks)
+                .Returns(OpenLibraryCoverRecovery.Recovered);
+            var portraitCache = Mocker.GetMock<IOpenLibraryAuthorPortraitCache>();
+            portraitCache.SetupSequence(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Returns(OpenLibraryCoverRecovery.Deferred)
+                .Returns(OpenLibraryCoverRecovery.Recovered);
+
+            var subject = new RetryOpenLibraryBookCoversService(
+                Mocker.GetMock<IConfigService>().Object,
+                bookRepository.Object,
+                Mocker.GetMock<IEditionService>().Object,
+                Mocker.GetMock<IOpenLibraryBookCoverCache>().Object,
+                new NzbDrone.Common.Cache.CacheManager(),
+                Mocker.GetMock<ICatalogueIdentityRepository>().Object,
+                authorRepository.Object,
+                portraitCache.Object,
+                _clock);
+            subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            authorRepository.VerifyNoOtherCalls();
+            subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Once);
+            bookRepository.Verify(repository => repository.GetArtworkRetryPage(1, 64), Times.Never);
+            subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Exactly(2));
+            authorRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Exactly(2));
+        }
+
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg", "OL17A", "primary-provider-id", false, true)]
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg?default=false", "openlibrary:author:OL17A", "legacy-provider-id", false, true)]
+        [TestCase("https://covers.openlibrary.org/b/id/19-L.jpg", "OL17A", "primary-provider-id", false, false)]
+        [TestCase("https://covers.openlibrary.org:443/a/id/19-L.jpg", "OL17A", "primary-provider-id", false, false)]
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg?extra=true", "OL17A", "primary-provider-id", false, false)]
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg", "OL18A", "primary-provider-id", false, false)]
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg", "OL17A", "legacy-linked-id", false, false)]
+        [TestCase("https://covers.openlibrary.org/a/id/19-L.jpg", "OL17A", "primary-provider-id", true, false)]
+        public void should_admit_only_an_exact_primary_author_portrait(
+            string url, string sourceId, string evidence, bool ambiguous, bool shouldRecover)
+        {
+            var author = PortraitAuthor(17);
+            var poster = author.Metadata.Value.Images.Single();
+            poster.Url = url;
+            poster.SourceId = sourceId;
+            var sources = new List<CatalogueSourceAssociation>
+            {
+                new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL17A", Evidence = evidence }
+            };
+            if (ambiguous)
+            {
+                sources.Add(new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL18A", Evidence = evidence });
+            }
+
+            Mocker.GetMock<ICatalogueIdentityRepository>()
+                .Setup(repository => repository.GetSources(CatalogueEntityKind.Author, author.AuthorMetadataId)).Returns(sources);
+            Mocker.GetMock<IAuthorRepository>()
+                .Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Author> { author });
+            Mocker.GetMock<IBookRepository>()
+                .Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(new List<Book>());
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+
+            Mocker.GetMock<IOpenLibraryAuthorPortraitCache>()
+                .Verify(cache => cache.TryRecover(author.Id, url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
+                    shouldRecover ? Times.Once() : Times.Never());
         }
 
         [Test]
@@ -67,6 +209,25 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             editionService.Verify(service => service.GetEditionsByBook(It.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new[] { 1, 2, 3, 4, 5, 6 }))), Times.Once);
             editionService.Verify(service => service.GetEditionsByBook(It.Is<IEnumerable<int>>(ids => ids.SequenceEqual(new[] { 5, 6 }))), Times.Once);
             editionService.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_wrap_when_the_last_book_uses_the_last_available_attempt()
+        {
+            var books = Enumerable.Range(1, 4).Select(StoredBook).ToList();
+            var repository = Mocker.GetMock<IBookRepository>();
+            repository.Setup(repo => repo.GetArtworkRetryPage(0, 64)).Returns(books);
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
+                .Returns(books.Select(book => StoredEdition(book)).ToList());
+            Mocker.GetMock<IOpenLibraryBookCoverCache>()
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Returns(OpenLibraryCoverRecovery.Recovered);
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+
+            repository.Verify(repo => repo.GetArtworkRetryPage(0, 64), Times.Exactly(2));
+            repository.VerifyNoOtherCalls();
         }
 
         [TestCase(OpenLibraryCoverRecovery.Deferred, 0, 1)]
@@ -137,7 +298,10 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 editionService.Object,
                 cache.Object,
                 new NzbDrone.Common.Cache.CacheManager(),
-                Mocker.GetMock<ICatalogueIdentityRepository>().Object);
+                Mocker.GetMock<ICatalogueIdentityRepository>().Object,
+                Mocker.GetMock<IAuthorRepository>().Object,
+                Mocker.GetMock<IOpenLibraryAuthorPortraitCache>().Object,
+                _clock);
             restarted.Execute(new RetryOpenLibraryBookCoversCommand());
 
             called.Should().Be(2);
@@ -246,6 +410,35 @@ namespace NzbDrone.Core.Test.MediaCoverTests
         }
 
         private static Book StoredBook(int id) => new Book { Id = id, ForeignBookId = $"openlibrary:work:OL{id}W" };
+
+        private Author PortraitAuthor(int id)
+        {
+            var token = $"OL{id}A";
+            var author = new Author
+            {
+                Id = id,
+                AuthorMetadataId = id + 100,
+                Metadata = new AuthorMetadata
+                {
+                    Id = id + 100,
+                    CanonicalId = Guid.NewGuid().ToString("N"),
+                    ForeignAuthorId = $"openlibrary:author:{token}",
+                    OpenLibraryAuthorId = token,
+                    Images = new List<MediaCover.MediaCover>
+                    {
+                        new MediaCover.MediaCover(MediaCoverTypes.Poster, $"https://covers.openlibrary.org/a/id/{id}-L.jpg")
+                        {
+                            SourceProvider = "OpenLibrary",
+                            SourceId = token
+                        }
+                    }
+                }
+            };
+            Mocker.GetMock<IAuthorRepository>().Setup(repository => repository.Find(id)).Returns(author);
+            Mocker.GetMock<ICatalogueIdentityRepository>().Setup(repository => repository.GetSources(CatalogueEntityKind.Author, author.AuthorMetadataId))
+                .Returns(new[] { new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = token, Evidence = "primary-provider-id" } });
+            return author;
+        }
 
         private static Edition StoredEdition(Book book, int coverId = 1)
         {

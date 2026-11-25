@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Retry saved, verified Open Library author portraits after the cover host
+  becomes available again, within the existing cover retry budget.
 - Hold ambiguous M4B imports when the embedded track title and author-prefixed
   filename agree but the album identifies a different work.
 - When a library scan generates a temporary opposite-format default for a new

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
@@ -22,6 +23,7 @@ namespace NzbDrone.Core.Books
         Dictionary<int, List<int>> AllAuthorTags();
         Author GetAuthorByMetadataId(int authorMetadataId);
         List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataId);
+        List<Author> GetArtworkRetryPage(int afterId, int pageSize);
         bool AuthorExistsWithMetadataProfile(int metadataProfileId);
         List<Author> GetAuthorsByMetadataProfile(int metadataProfileId);
         bool AuthorExistsWithQualityProfile(int qualityProfileId);
@@ -129,6 +131,19 @@ namespace NzbDrone.Core.Books
         public List<Author> GetAuthorsByMetadataId(IEnumerable<int> authorMetadataIds)
         {
             return Query(s => authorMetadataIds.Contains(s.AuthorMetadataId));
+        }
+
+        public List<Author> GetArtworkRetryPage(int afterId, int pageSize)
+        {
+            var page = new PagingSpec<Author>
+            {
+                Page = 1,
+                PageSize = Math.Clamp(pageSize, 1, 128),
+                SortKey = "Authors.Id",
+                SortDirection = SortDirection.Ascending
+            };
+            page.FilterExpressions.Add(author => author.Id > afterId);
+            return GetPagedRecords(Builder(), page, PagedQuery);
         }
 
         public bool AuthorExistsWithMetadataProfile(int metadataProfileId)

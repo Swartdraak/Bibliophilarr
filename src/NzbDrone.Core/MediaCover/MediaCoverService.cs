@@ -25,6 +25,7 @@ namespace NzbDrone.Core.MediaCover
         string GetCoverPath(int entityId, MediaCoverEntity coverEntity, MediaCoverTypes coverType, string extension, int? height = null);
         void EnsureBookCovers(Book book);
         void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images);
+        void MapRecoveredAuthorPortrait(Author author, IEnumerable<MediaCover> images);
     }
 
     public partial class MediaCoverService :
@@ -32,7 +33,8 @@ namespace NzbDrone.Core.MediaCover
         IHandleAsync<AuthorDeletedEvent>,
         IHandleAsync<BookDeletedEvent>,
         IMapCoversToLocal,
-        IOpenLibraryBookCoverCache
+        IOpenLibraryBookCoverCache,
+        IOpenLibraryAuthorPortraitCache
     {
         private const string USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 10; SM-G975U Build/QP1A.190711.020)";
         private const string OpenLibraryCoversHost = "covers.openlibrary.org";
@@ -532,7 +534,11 @@ namespace NzbDrone.Core.MediaCover
                         CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, cover.SourceId, null)?.Provider == cover.SourceProvider)
                     .ToList();
                 EnsureAuthorCovers(author, alternatives);
-                ReconcileCoverFiles(author.Id, MediaCoverEntity.Author, metadata.Images);
+                var portrait = OpenLibraryMissingAuthorPortrait.SelectArtwork(_authorRepository.Find(author.Id));
+                var retrySuffix = portrait is { } current && OpenLibraryMissingAuthorPortrait.HasVerifiedOwner(_catalogueIdentity, current.MetadataId, current.SourceId)
+                    ? current.FileSuffix
+                    : null;
+                ReconcileCoverFiles(author.Id, MediaCoverEntity.Author, metadata.Images, retrySuffix);
                 ReconcileAlternativeFiles(author.Id, MediaCoverEntity.Author, alternatives);
             }
 
@@ -769,6 +775,10 @@ namespace NzbDrone.Core.MediaCover
             {
                 expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Cover, retrySuffix));
             }
+            else if (coverEntity == MediaCoverEntity.Author && OpenLibraryMissingAuthorPortrait.IsValidRetryFileSuffix(retrySuffix))
+            {
+                expectedPaths.Add(GetCoverPath(entityId, coverEntity, MediaCoverTypes.Poster, retrySuffix));
+            }
 
             if (expectedPaths.Count == 0 && coverEntity != MediaCoverEntity.Book)
             {
@@ -777,6 +787,13 @@ namespace NzbDrone.Core.MediaCover
 
             foreach (var existing in _diskProvider.GetFiles(directory, true).Where(file => !IsAlternativeDownload(file)))
             {
+                if (coverEntity == MediaCoverEntity.Author && retrySuffix == null &&
+                    OpenLibraryMissingAuthorPortrait.IsRetryPortraitFile(Path.GetFileName(existing)))
+                {
+                    // A missing or ambiguous association is not an authoritative cleanup list.
+                    continue;
+                }
+
                 if (!hasExpectedOrdinaryArt && !OpenLibraryMissingBookCover.IsRetryCoverFile(Path.GetFileName(existing)))
                 {
                     continue;

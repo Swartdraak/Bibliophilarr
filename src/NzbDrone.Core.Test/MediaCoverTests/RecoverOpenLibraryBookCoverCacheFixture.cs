@@ -197,6 +197,106 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             http.VerifyNoOtherCalls();
         }
 
+        [Test]
+        public void should_publish_a_verified_author_portrait_and_map_only_the_current_cold_source()
+        {
+            const string url = "https://covers.openlibrary.org/a/id/41-L.jpg";
+            const string secondUrl = "https://covers.openlibrary.org/a/id/42-L.jpg";
+            var profile = TempFolder;
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(profile);
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(service => service.FileExists(It.IsAny<string>())).Returns<string>(File.Exists);
+            disk.Setup(service => service.GetFileSize(It.IsAny<string>())).Returns<string>(path => new FileInfo(path).Length);
+            disk.Setup(service => service.FileGetLastWrite(It.IsAny<string>())).Returns<string>(File.GetLastWriteTimeUtc);
+            disk.Setup(service => service.OpenWriteStream(It.IsAny<string>())).Returns<string>(File.Create);
+            disk.Setup(service => service.CreateFolder(It.IsAny<string>())).Callback<string>(path => Directory.CreateDirectory(path));
+            disk.Setup(service => service.MoveFile(It.IsAny<string>(), It.IsAny<string>(), false)).Callback<string, string, bool>(File.Move);
+            disk.Setup(service => service.DeleteFile(It.IsAny<string>())).Callback<string>(File.Delete);
+
+            var poster = new MediaCover.MediaCover(MediaCoverTypes.Poster, url) { SourceProvider = "OpenLibrary", SourceId = "OL41A" };
+            var author = new Author
+            {
+                Id = 4,
+                AuthorMetadataId = 11,
+                Metadata = new AuthorMetadata
+                {
+                    Id = 11,
+                    CanonicalId = "112233445566478899aabbccddeeff01",
+                    ForeignAuthorId = "openlibrary:author:OL41A",
+                    Images = new List<MediaCover.MediaCover> { poster }
+                }
+            };
+            var identity = Mocker.GetMock<ICatalogueIdentityRepository>();
+            var ownership = new List<CatalogueSourceAssociation>
+            {
+                new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL41A", Evidence = "primary-provider-id" }
+            };
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 11)).Returns(ownership);
+            var subject = CreateTimedService();
+            var cache = (IOpenLibraryAuthorPortraitCache)subject;
+            var descriptor = OpenLibraryMissingAuthorPortrait.SelectArtwork(author).Value;
+            var path = subject.GetCoverPath(author.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, descriptor.FileSuffix);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                request.AllowAutoRedirect.Should().BeFalse();
+                request.RequestTimeout.Should().Be(TimeSpan.FromSeconds(5));
+                var width = request.Url.FullUri == secondUrl ? 1 : 192;
+                var height = request.Url.FullUri == secondUrl ? 1 : 256;
+                using var image = new Image<Rgba32>(width, height);
+                image.Save(request.ResponseStream, new JpegEncoder());
+                return new HttpResponse(request, new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.OK);
+            });
+
+            var reads = 0;
+            cache.TryRecover(author.Id, url, descriptor.FileSuffix, () => ++reads == 1, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.Skipped);
+            File.Exists(path).Should().BeFalse();
+
+            poster.Url = secondUrl;
+            var placeholder = OpenLibraryMissingAuthorPortrait.SelectArtwork(author).Value;
+            cache.TryRecover(author.Id, secondUrl, placeholder.FileSuffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.Unavailable);
+            poster.Url = url;
+
+            cache.TryRecover(author.Id, url, descriptor.FileSuffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.Recovered);
+            using (var image = Image.Load(path))
+            {
+                image.Width.Should().Be(192);
+                image.Height.Should().Be(256);
+            }
+
+            var mapped = new MediaCover.MediaCover(MediaCoverTypes.Poster, "proxy")
+            {
+                RemoteUrl = url,
+                SourceProvider = "OpenLibrary",
+                SourceId = "openlibrary:author:OL41A"
+            };
+            subject.MapRecoveredAuthorPortrait(author, new[] { mapped });
+            mapped.Url.Should().StartWith($"/MediaCover/{author.Id}/poster{descriptor.FileSuffix}?lastWrite=");
+
+            mapped.Url = "proxy";
+            ownership[0].Evidence = "legacy-linked-id";
+            subject.MapRecoveredAuthorPortrait(author, new[] { mapped });
+            mapped.Url.Should().Be("proxy");
+            ownership[0].Evidence = "primary-provider-id";
+            poster.Url = secondUrl;
+            subject.MapRecoveredAuthorPortrait(author, new[] { mapped });
+            mapped.Url.Should().Be("proxy");
+            poster.Url = url;
+
+            var normal = subject.GetCoverPath(author.Id, MediaCoverEntity.Author, MediaCoverTypes.Poster, ".jpg");
+            File.WriteAllText(normal, "normal portrait sentinel");
+            cache.IsMissing(author.Id, placeholder.FileSuffix).Should().BeFalse();
+            subject.MapRecoveredAuthorPortrait(author, new[] { mapped });
+            mapped.Url.Should().Be("proxy");
+            File.ReadAllText(normal).Should().Be("normal portrait sentinel");
+            Directory.EnumerateFiles(Path.Combine(profile, "MediaCoverRetry")).Should().BeEmpty();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(3));
+            http.VerifyNoOtherCalls();
+        }
+
         private MediaCoverService CreateTimedService()
         {
             // Requests to the exact Open Library host share a process-wide bucket.

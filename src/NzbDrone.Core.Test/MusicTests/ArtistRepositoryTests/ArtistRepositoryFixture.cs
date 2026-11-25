@@ -132,6 +132,21 @@ namespace NzbDrone.Core.Test.MusicTests.AuthorRepositoryTests
         }
 
         [Test]
+        public void should_read_author_artwork_pages_by_local_id_with_joined_metadata()
+        {
+            GivenAuthors();
+
+            var first = _authorRepo.GetArtworkRetryPage(0, 1).Should().ContainSingle().Which;
+            var second = _authorRepo.GetArtworkRetryPage(first.Id, 1).Should().ContainSingle().Which;
+
+            first.AuthorMetadataId.Should().Be(first.Metadata.Value.Id);
+            second.AuthorMetadataId.Should().Be(second.Metadata.Value.Id);
+            first.Name.Should().Be("The Black Eyed Peas");
+            second.Name.Should().Be("The Black Keys");
+            _authorRepo.GetArtworkRetryPage(second.Id, 1).Should().BeEmpty();
+        }
+
+        [Test]
         public void should_not_find_author_if_multiple_authors_have_same_name()
         {
             GivenAuthors();
