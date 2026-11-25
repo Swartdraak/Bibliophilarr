@@ -78,12 +78,11 @@ recovery issue is closed.
 - The most recent fresh profile saved all four provider configurations and
   recorded live requests to each provider during the ebook scans. Those scans
   inventoried 75 ebooks, linked 53 to ebook editions, and held 22 for review.
-  Both roots are saved. The browser test driver stopped the instance after
-  saving the audiobook root, before the audiobook scan imported files.
-  Continue from the saved roots and reconcile the interrupted command before
-  scanning all 458 audiobooks. The full coverage and restart checks on this
-  profile are still pending.
-  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7149349955)
+  Six holds are byte-identical copies of existing typed files. The saved
+  audiobook root was recovered after the interrupted scan. A replacement scan
+  of all 458 audiobook paths is running in the same profile. Dual-format
+  ownership, complete metadata and restart still require final validation.
+  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7150351698)
 - The closed replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
