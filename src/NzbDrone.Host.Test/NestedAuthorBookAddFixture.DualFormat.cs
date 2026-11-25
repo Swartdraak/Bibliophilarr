@@ -15,7 +15,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.Commands;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Test.Common.Datastore;
@@ -171,8 +174,11 @@ namespace NzbDrone.Host.Test
                                 monitorNewItems = "none",
                                 addOptions = new { monitor = "none", searchForMissingBooks = false }
                             };
+                            var commands = host.Services.GetRequiredService<ICommandRepository>();
+                            var previousCommands = commands.All().ToList();
                             var unrelated = await Post(client, "author", unrelatedSettings, HttpStatusCode.Created, token);
                             unrelatedAuthorId = unrelated.GetProperty("id").GetInt32();
+                            await WaitForAuthorAddScan(client, commands, previousCommands, library, unrelatedAuthorId, token);
                             var removedId = keepFilesRemoval == "author" ? authorId : bookId;
                             using var removal = await client.DeleteAsync($"{keepFilesRemoval}/{removedId}?deleteFiles=false", token);
                             removal.IsSuccessStatusCode.Should().BeTrue();
@@ -295,14 +301,46 @@ namespace NzbDrone.Host.Test
                 HttpStatusCode.Created,
                 token);
 
-            var commandId = command.GetProperty("id").GetInt32();
+            await WaitForSuccessfulCommand(client, command.GetProperty("id").GetInt32(), token);
+        }
+
+        private static async Task WaitForAuthorAddScan(HttpClient client,
+                                                       ICommandRepository commands,
+                                                       List<CommandModel> previousCommands,
+                                                       string library,
+                                                       int authorId,
+                                                       CancellationToken token)
+        {
+            var beforeAdd = previousCommands.Select(command => command.Id).DefaultIfEmpty().Max();
+            var refresh = commands.All().Single(command => command.Id > beforeAdd &&
+                command.Body is RefreshAuthorCommand { IsNewAuthor: true } body && body.AuthorId == authorId);
+            await WaitForSuccessfulCommand(client, refresh.Id, token);
+
+            // The refresh enqueues its scan before completion. It may instead reuse an active matched scan of the same root.
+            var activeAtAdd = previousCommands.Where(command => command.Status is CommandStatus.Queued or CommandStatus.Started)
+                .Select(command => command.Id)
+                .ToHashSet();
+            var scans = commands.All().Where(command =>
+                (command.Id > beforeAdd || activeAtAdd.Contains(command.Id)) &&
+                command.Body is RescanFoldersCommand { Filter: FilterFilesType.Matched, AddNewAuthors: false } scan &&
+                scan.Folders?.SequenceEqual(new[] { library }) == true)
+                .ToList();
+            scans.Should().NotBeEmpty($"adding author {authorId} schedules or reuses a matched scan of the fixture library");
+            foreach (var scan in scans)
+            {
+                await WaitForSuccessfulCommand(client, scan.Id, token);
+            }
+        }
+
+        private static async Task WaitForSuccessfulCommand(HttpClient client, int commandId, CancellationToken token)
+        {
             while (true)
             {
                 var current = await Get(client, $"command/{commandId}", token);
                 var status = current.GetProperty("status").GetString();
                 if (status == "completed")
                 {
-                    current.GetProperty("result").GetString().Should().Be("successful");
+                    current.GetProperty("result").GetString().Should().Be("successful", $"command {commandId} must finish successfully");
                     return;
                 }
 
