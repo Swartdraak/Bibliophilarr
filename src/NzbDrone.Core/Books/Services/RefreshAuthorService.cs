@@ -158,6 +158,7 @@ namespace NzbDrone.Core.Books
                 if ((profile.Overview.IsNotNullOrWhiteSpace() || portrait != null) &&
                     _authorMetadataService.TryFillOpenLibraryProfile(author, sourceId, profile.Overview, portrait))
                 {
+                    _authorService.ClearAuthorCache();
                     var current = _authorService.GetAuthor(author.Id);
                     if (current?.AuthorMetadataId == incumbent.Id)
                     {

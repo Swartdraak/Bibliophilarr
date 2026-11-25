@@ -46,6 +46,7 @@ namespace NzbDrone.Core.Test.MetadataSource
         [TestCase(false, "wrong-profile")]
         [TestCase(false, "wrong-portrait")]
         [TestCase(false, "alternate-unavailable")]
+        [TestCase(false, "write-miss")]
         public void should_enrich_missing_verified_profile_during_hardcover_cooldown(bool scheduled, string evidence)
         {
             const string foreignId = "hardcover:author:123";
@@ -134,7 +135,8 @@ namespace NzbDrone.Core.Test.MetadataSource
             }
 
             var writes = Mocker.GetMock<IAuthorMetadataService>();
-            writes.Setup(service => service.TryFillOpenLibraryProfile(stored, alternateId, profile.Overview, evidence == "wrong-portrait" ? null : portrait)).Returns(true);
+            writes.Setup(service => service.TryFillOpenLibraryProfile(stored, alternateId, profile.Overview, evidence == "wrong-portrait" ? null : portrait))
+                .Returns(evidence != "write-miss");
             Mocker.GetMock<IAuthorService>().Setup(service => service.GetAuthor(stored.Id)).Returns(stored);
 
             var command = scheduled ? new RefreshAuthorCommand() : new RefreshAuthorCommand(stored.Id);
@@ -151,13 +153,15 @@ namespace NzbDrone.Core.Test.MetadataSource
             providers.Verify(
                 provider => provider.GetAuthorProfileMetadata("OpenLibrary", alternateId),
                 evidence is "unverified-link" or "wrong-owner" ? Times.Never() : Times.Once());
-            var fills = evidence is "verified" or "wrong-portrait";
+            var eligible = evidence is "verified" or "wrong-portrait" or "write-miss";
+            var filled = eligible && evidence != "write-miss";
             writes.Verify(
                 service => service.TryFillOpenLibraryProfile(stored, alternateId, profile.Overview, evidence == "wrong-portrait" ? null : portrait),
-                fills ? Times.Once() : Times.Never());
+                eligible ? Times.Once() : Times.Never());
             writes.VerifyNoOtherCalls();
+            Mocker.GetMock<IAuthorService>().Verify(service => service.ClearAuthorCache(), filled ? Times.Once() : Times.Never());
             var events = Mocker.GetMock<IEventAggregator>();
-            events.Verify(aggregator => aggregator.PublishEvent(It.IsAny<AuthorUpdatedEvent>()), fills ? Times.Once() : Times.Never());
+            events.Verify(aggregator => aggregator.PublishEvent(It.IsAny<AuthorUpdatedEvent>()), filled ? Times.Once() : Times.Never());
             events.Verify(aggregator => aggregator.PublishEvent(It.IsAny<AuthorRefreshCompleteEvent>()), Times.Never());
             Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
             Mocker.GetMock<IRefreshSeriesService>().VerifyNoOtherCalls();
