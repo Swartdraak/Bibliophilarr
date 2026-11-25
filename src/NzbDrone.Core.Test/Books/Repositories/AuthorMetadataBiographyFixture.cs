@@ -83,6 +83,49 @@ namespace NzbDrone.Core.Test.BooksTests.Repositories
             identities.GetSources(CatalogueEntityKind.Author, prior.Id).Should().BeEquivalentTo(originalSources);
         }
 
+        [TestCase(" \t ", true, true)]
+        [TestCase("{", true, false)]
+        [TestCase("{", false, false)]
+        public void should_fill_the_biography_without_replacing_unreadable_image_data(string storedImages, bool supplyPortrait, bool canFillPortrait)
+        {
+            const string sourceId = "OL123A";
+            const string overview = "Verified biography";
+            const string portraitUrl = "https://covers.openlibrary.org/a/id/123-L.jpg";
+            var metadata = Subject.Insert(new AuthorMetadata
+            {
+                ForeignAuthorId = "hardcover:author:123",
+                Name = "Stored Name",
+                SortName = "stored name",
+                NameLastFirst = "Name, Stored",
+                SortNameLastFirst = "name, stored",
+                TitleSlug = "stored-name"
+            });
+            var author = Db.Insert(new Author { AuthorMetadataId = metadata.Id, Metadata = metadata, Path = "/author", CleanName = "storedname" });
+            Mocker.Resolve<CatalogueIdentityRepository>()
+                .TryAddSource(CatalogueEntityKind.Author, metadata.Id, "OpenLibrary", sourceId, AuthorCanonicalizationService.BibliographyEvidence)
+                .Should().BeTrue();
+
+            using var connection = Mocker.Resolve<IMainDatabase>().OpenConnection();
+            connection.Execute("""UPDATE "AuthorMetadata" SET "Images" = @storedImages WHERE "Id" = @Id""", new { metadata.Id, storedImages });
+
+            var portrait = supplyPortrait
+                ? new MediaCover.MediaCover(MediaCoverTypes.Poster, portraitUrl) { SourceProvider = "OpenLibrary", SourceId = sourceId }
+                : null;
+            Subject.TryFillOpenLibraryProfile(author, sourceId, overview, portrait).Should().BeTrue();
+
+            var current = connection.QuerySingle<(string Overview, string Images)>(
+                """SELECT "Overview", "Images" FROM "AuthorMetadata" WHERE "Id" = @Id""", new { metadata.Id });
+            current.Overview.Should().Be(overview);
+            if (canFillPortrait)
+            {
+                Subject.Get(metadata.Id).Images.Should().ContainSingle().Which.Url.Should().Be(portraitUrl);
+            }
+            else
+            {
+                current.Images.Should().Be(storedImages);
+            }
+        }
+
         [TestCase("hardcover:author:123", "hardcover:author:123", null)]
         [TestCase("hardcover:author:Author%20Name", "hardcover:author:123", null)]
         [TestCase("googlebooks:author:Author%20Name", "googlebooks:author:Author%20Name", null)]

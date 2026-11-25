@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using Dapper;
 using NLog;
 using NzbDrone.Common.Extensions;
@@ -49,9 +50,9 @@ namespace NzbDrone.Core.Books
             using var connection = _database.OpenConnection();
             var existing = connection.QuerySingleOrDefault<(string Overview, string Images)>(
                 """SELECT "Overview", "Images" FROM "AuthorMetadata" WHERE "Id" = @Id""", new { metadata.Id });
-            var images = (existing.Images == null ? null : ImageConverter.Parse(existing.Images)) ?? new List<MediaCover.MediaCover>();
             var fillOverview = existing.Overview.IsNullOrWhiteSpace() && overview.IsNotNullOrWhiteSpace();
-            var fillPortrait = portrait != null && !images.Any(image => image?.CoverType == MediaCoverTypes.Poster && image.Url.IsNotNullOrWhiteSpace());
+            var images = portrait == null ? null : ReadImagesForPortrait(existing.Images, metadata.Id);
+            var fillPortrait = images != null && !images.Any(image => image?.CoverType == MediaCoverTypes.Poster && image.Url.IsNotNullOrWhiteSpace());
             if (!fillOverview && !fillPortrait)
             {
                 return false;
@@ -96,10 +97,28 @@ namespace NzbDrone.Core.Books
                     fillOverview,
                     fillPortrait,
                     overview = overview?.Trim(),
-                    images,
+                    images = images ?? new List<MediaCover.MediaCover>(),
                     previousOverview = existing.Overview,
                     previousImages = existing.Images
                 }) == 1;
+        }
+
+        private List<MediaCover.MediaCover> ReadImagesForPortrait(string storedImages, int metadataId)
+        {
+            if (storedImages.IsNullOrWhiteSpace())
+            {
+                return new List<MediaCover.MediaCover>();
+            }
+
+            try
+            {
+                return ImageConverter.Parse(storedImages) ?? new List<MediaCover.MediaCover>();
+            }
+            catch (JsonException)
+            {
+                _logger.Debug("Skipping portrait enrichment for author metadata {0} because its existing image data could not be read.", metadataId);
+                return null;
+            }
         }
 
         public bool UpsertMany(List<AuthorMetadata> data)
