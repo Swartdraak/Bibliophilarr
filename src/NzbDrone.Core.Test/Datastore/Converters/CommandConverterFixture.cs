@@ -3,6 +3,7 @@ using FluentAssertions;
 using NUnit.Framework;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Datastore.Converters;
+using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Test.Framework;
 
@@ -41,6 +42,36 @@ namespace NzbDrone.Core.Test.Datastore.Converters
             var data = "{\"name\": \"RefreshAuthor\"}";
 
             Subject.Parse(data).Should().BeOfType<RefreshAuthorCommand>();
+        }
+
+        [TestCase("RetagFiles", "", null)]
+        [TestCase("RetagFiles", ",\"updateAudioCovers\":false", false)]
+        [TestCase("RetagFiles", ",\"updateAudioCovers\":true", true)]
+        [TestCase("RetagAuthor", "", null)]
+        [TestCase("RetagAuthor", ",\"updateAudioCovers\":null", null)]
+        [TestCase("RetagAuthor", ",\"updateAudioCovers\":false", false)]
+        [TestCase("RetagAuthor", ",\"updateAudioCovers\":true", true)]
+        public void should_round_trip_audiobook_cover_choice(string commandName, string option, bool? expected)
+        {
+            var data = $"{{\"name\":\"{commandName}\",\"updateCovers\":true,\"embedMetadata\":false{option}}}";
+            Subject.SetValue(_param, Subject.Parse(data));
+
+            switch (Subject.Parse(_param.Value))
+            {
+                case RetagFilesCommand files:
+                    files.UpdateAudioCovers.Should().Be(expected);
+                    files.UpdateCovers.Should().BeTrue();
+                    files.EmbedMetadata.Should().BeFalse();
+                    break;
+                case RetagAuthorCommand author:
+                    author.UpdateAudioCovers.Should().Be(expected);
+                    author.UpdateCovers.Should().BeTrue();
+                    author.EmbedMetadata.Should().BeFalse();
+                    break;
+                default:
+                    Assert.Fail("Expected a retag command");
+                    break;
+            }
         }
 
         [Test]

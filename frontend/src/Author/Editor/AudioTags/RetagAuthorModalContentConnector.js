@@ -41,6 +41,7 @@ class RetagAuthorModalContentConnector extends Component {
       name: commandNames.RETAG_AUTHOR,
       authorIds: this.props.authorIds,
       updateCovers,
+      updateAudioCovers: updateCovers,
       embedMetadata
     });
 

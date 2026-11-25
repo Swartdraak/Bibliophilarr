@@ -9,6 +9,7 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { icons, kinds } from 'Helpers/Props';
+import translate from 'Utilities/String/translate';
 import styles from './RetagAuthorModalContent.css';
 
 class RetagAuthorModalContent extends Component {
@@ -74,27 +75,31 @@ class RetagAuthorModalContent extends Component {
               })
             }
           </ul>
+          <p id="retagAuthorCoverHelp">
+            {translate('RetagUpdateCoversHelpText')}
+          </p>
         </ModalBody>
 
         <ModalFooter>
-          <label className={styles.searchForNewBookLabelContainer}>
-            <span className={styles.searchForNewBookLabel}>
-              Update Covers
-            </span>
+          <div className={styles.searchForNewBookLabelContainer}>
+            <label className={styles.searchForNewBookLabel} htmlFor="updateCovers">
+              {translate('UpdateCovers')}
+            </label>
 
             <CheckInput
               containerClassName={styles.searchForNewBookContainer}
               className={styles.searchForNewBookInput}
               name="updateCovers"
+              ariaDescribedBy="retagAuthorCoverHelp"
               value={this.state.updateCovers}
               onChange={this.onCheckInputChange}
             />
-          </label>
+          </div>
 
-          <label className={styles.searchForNewBookLabelContainer}>
-            <span className={styles.searchForNewBookLabel}>
-              Embed Metadata
-            </span>
+          <div className={styles.searchForNewBookLabelContainer}>
+            <label className={styles.searchForNewBookLabel} htmlFor="embedMetadata">
+              {translate('RetagEmbedCalibreMetadata')}
+            </label>
 
             <CheckInput
               containerClassName={styles.searchForNewBookContainer}
@@ -103,7 +108,7 @@ class RetagAuthorModalContent extends Component {
               value={this.state.embedMetadata}
               onChange={this.onCheckInputChange}
             />
-          </label>
+          </div>
 
           <Button onPress={onModalClose}>
             Cancel
