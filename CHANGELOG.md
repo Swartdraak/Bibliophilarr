@@ -20,6 +20,8 @@ process.
 
 ### Fixed
 
+- Keep download decision diagnostics on one line and leave release URLs out of
+  exception log data.
 - Keep the author and its catalogue records when Delete Files cannot verify
   the library folder. Show the error in the author deletion dialog.
 - Keep Inventaire work covers out of author portraits when the source supplies
