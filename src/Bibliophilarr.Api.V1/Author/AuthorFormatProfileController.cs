@@ -47,10 +47,24 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPutById]
-        public ActionResult<AuthorFormatProfileResource> Update([FromBody] AuthorFormatProfileResource resource)
+        public ActionResult<AuthorFormatProfileResource> Update([FromRoute] int id, [FromBody] AuthorFormatProfileResource resource)
         {
-            _formatProfileService.Update(resource.ToModel());
-            return Accepted(resource.Id);
+            if (resource.Id != id)
+            {
+                throw new BadRequestException("The format profile does not match the requested ID.");
+            }
+
+            var stored = _formatProfileService.Get(id);
+            if (resource.AuthorId != stored.AuthorId || resource.FormatType != stored.FormatType)
+            {
+                throw new BadRequestException("The format profile's author and format cannot be changed.");
+            }
+
+            var model = resource.ToModel();
+            model.Path = stored.Path;
+            model.Tags = resource.Tags ?? stored.Tags;
+            _formatProfileService.Update(model);
+            return Accepted(id);
         }
 
         [RestDeleteById]
