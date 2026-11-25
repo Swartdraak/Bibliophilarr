@@ -310,7 +310,7 @@ namespace NzbDrone.Core.Books
                 author = BuildFallbackAuthor(newAuthor);
             }
             catch (MetadataProviderUnavailableException ex) when (
-                deferIncompleteBibliography && ex.AuthoritativeBibliographyEndedEarly &&
+                deferIncompleteBibliography && ex.AuthoritativeBibliographyIncomplete &&
                 ex.Operation == MetadataProviderOrchestrator.AuthorInfoOperation &&
                 ex.EntityId == normalizedForeignAuthorId)
             {

@@ -891,6 +891,86 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_skip_untitled_ranked_hits_and_keep_the_valid_sibling()
+        {
+            const string payload = """
+                {"data":{"search":{"results":{"hits":[
+                    {"document":{"id":"1","title":null}},
+                    {"document":{"id":"2","title":" "}},
+                    {"document":{"id":"3","title":1984}},
+                    {"document":{"id":"4","title":"1984","author_names":["Fixture author"]}}
+                ]}}}}
+                """;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var book = Subject.SearchForNewBook("Fixture title", null).Should().ContainSingle().Which;
+
+            book.ForeignBookId.Should().Be("hardcover:work:4");
+            book.Title.Should().Be("1984");
+            book.Editions.Value.Should().ContainSingle().Which.Title.Should().Be("1984");
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [TestCase("null", false)]
+        [TestCase("\"  \"", false)]
+        [TestCase("1984", false)]
+        [TestCase("\" Exact Fixture Title \"", true)]
+        public void should_distinguish_an_untitled_exact_work_from_no_result(string titleToken, bool validTitle)
+        {
+            const string workId = "hardcover:work:543";
+            var response = JObject.Parse("""
+                {"data":{"books":[{"id":543,"title":"Fixture Title","cached_contributors":[{"author":{"id":123,"name":"Fixture Author"}}]}]}}
+                """);
+            response.SelectToken("data.books[0]")["title"] = JToken.Parse(titleToken);
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => CreateJsonResponse(request, response));
+
+            if (validTitle)
+            {
+                var book = Subject.GetBookInfo(workId).Item2;
+                book.ForeignBookId.Should().Be(workId);
+                book.Title.Should().Be("Exact Fixture Title");
+                var edition = book.Editions.Value.Should().ContainSingle().Which;
+                edition.ForeignEditionId.Should().Be("hardcover:edition:543");
+                edition.Title.Should().Be(book.Title);
+            }
+            else
+            {
+                var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetBookInfo(workId));
+                error.Operation.Should().Be("get-book-info");
+                error.EntityId.Should().Be(workId);
+            }
+
+            client.Verify(service => service.Post<JObject>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_not_report_an_untitled_exact_search_fallback_as_missing()
+        {
+            const string workId = "hardcover:work:book-1";
+            const string payload = """
+                {"data":{"search":{"results":{"hits":[{"document":{"id":"book-1","title":" "}}]}}}}
+                """;
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                    new HttpResponse<HardcoverGraphQlResponse>(new HttpResponse(request, new HttpHeader { ContentType = "application/json" }, payload)));
+
+            var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetBookInfo(workId));
+
+            error.Operation.Should().Be("get-book-info");
+            error.EntityId.Should().Be(workId);
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Once());
+            client.VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void get_book_info_should_hydrate_author_book_edition_and_series_fields()
         {
             Mocker.GetMock<IHttpClient>()
@@ -1138,6 +1218,58 @@ namespace NzbDrone.Core.Test.MetadataSource
             ExceptionVerification.ExpectedWarns(failure == "transport" ? 2 : 1);
             Mocker.GetMock<IHttpClient>()
                 .Verify(client => client.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_require_titles_for_every_identified_work_in_an_authoritative_bibliography(bool complete)
+        {
+            const string authorId = "hardcover:author:123";
+            var calls = new List<string>();
+            var client = Mocker.GetMock<IHttpClient>();
+            client.Setup(service => service.Post<JObject>(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request =>
+                {
+                    var body = JObject.Parse(Encoding.UTF8.GetString(request.ContentData));
+                    if (body.Value<string>("query").StartsWith("query GetAuthorSeries", StringComparison.Ordinal))
+                    {
+                        calls.Add("series");
+                        return CreateJsonResponse(request, BuildAuthorSeriesResponse(new JArray(), 0));
+                    }
+
+                    var offset = body.SelectToken("variables.offset").Value<int>();
+                    calls.Add($"works:{offset}");
+                    var response = BuildAuthorPage(offset < 2 ? new[] { offset + 1 } : Array.Empty<int>());
+                    if (offset == 1 && !complete)
+                    {
+                        response.SelectToken("data.authors[0].contributions[0].book")["title"] = " ";
+                    }
+
+                    return CreateJsonResponse(request, response);
+                });
+
+            if (complete)
+            {
+                var author = Subject.GetAuthorInfo(authorId);
+                var books = author.Books.Value;
+                books.Select(book => book.ForeignBookId).Should().Equal("hardcover:work:1", "hardcover:work:2");
+                books.Select(book => book.Editions.Value.Single().ForeignEditionId).Should().Equal("hardcover:edition:1", "hardcover:edition:2");
+                books.Select(book => book.Title).Should().Equal("Book Collection: Volume 1", "Book Collection: Volume 2");
+                calls.Should().Equal("works:0", "works:1", "works:2", "series");
+            }
+            else
+            {
+                var error = Assert.Throws<MetadataProviderUnavailableException>(() => Subject.GetAuthorInfo(authorId));
+                error.Operation.Should().Be(MetadataProviderOrchestrator.AuthorInfoOperation);
+                error.EntityId.Should().Be(authorId);
+                error.InnerException.Message.Should().Contain("without a usable title");
+                error.AuthorBibliographyProgress.Should().BeNull();
+                error.AuthoritativeBibliographyEndedEarly.Should().BeFalse();
+                error.AuthoritativeBibliographyMissingWorkTitle.Should().BeTrue();
+                calls.Should().Equal("works:0", "works:1");
+            }
+
+            client.Verify(service => service.Post<HardcoverGraphQlResponse>(It.IsAny<HttpRequest>()), Times.Never());
         }
 
         [Test]

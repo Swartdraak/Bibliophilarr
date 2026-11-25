@@ -412,7 +412,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             // Fallback to text search
-            var books = SearchBooks(BuildScopedQueryFromBookId(requestedId), SearchPageSize);
+            var books = SearchBooks(BuildScopedQueryFromBookId(requestedId), SearchPageSize, requestedId);
             var book = books.FirstOrDefault(x => string.Equals(ExtractBookToken(x.ForeignBookId), requestedId, StringComparison.OrdinalIgnoreCase));
 
             if (book == null)
@@ -1219,7 +1219,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             return request;
         }
 
-        private List<Book> SearchBooks(string queryText, int perPage)
+        private List<Book> SearchBooks(string queryText, int perPage, string exactWorkId = null)
         {
             if (!_configService.EnableHardcoverFallback)
             {
@@ -1299,6 +1299,13 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 .ToList();
 
             ResetDeterministicSearchErrorState();
+
+            if (exactWorkId != null &&
+                !mapped.Any(book => string.Equals(ExtractBookToken(book.ForeignBookId), exactWorkId, StringComparison.OrdinalIgnoreCase)) &&
+                results.Any(result => string.Equals(ExtractBookToken(result.Id), exactWorkId, StringComparison.OrdinalIgnoreCase) && ReadWorkTitle(result.Title) == null))
+            {
+                throw IncompleteWorkTitle(exactWorkId);
+            }
 
             _logger.Debug("Hardcover book search returned {0} unique mapped result(s).", mapped.Count);
 
@@ -1416,6 +1423,11 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                 }
 
                 var bookData = booksArray.First;
+                if (bookData is JObject work && ReadPositiveId(work["id"]) == workId && ReadWorkTitle(work["title"]) == null)
+                {
+                    throw IncompleteWorkTitle(workId.ToString(CultureInfo.InvariantCulture));
+                }
+
                 var result = MapDirectBookResult(bookData);
                 if (result != null)
                 {
@@ -1424,7 +1436,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
                 return result;
             }
-            catch (Exception ex) when (ex is not TooManyRequestsException { HardcoverCooldownUntilUtc: not null })
+            catch (Exception ex) when (ex is not TooManyRequestsException { HardcoverCooldownUntilUtc: not null } and not MetadataProviderUnavailableException)
             {
                 _logger.Debug(ex, "Hardcover direct work lookup failed for ID {0}.", workId);
                 return null;
@@ -1677,12 +1689,22 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                             continue;
                         }
 
-                        var book = MapDirectBookResult(bookData);
-                        if (book == null || bookData.Value<int?>("id") is not int bookId || bookId <= 0)
+                        if (bookData.Value<int?>("id") is not int bookId || bookId <= 0)
                         {
                             continue;
                         }
 
+                        if (ReadWorkTitle(bookData["title"]) == null)
+                        {
+                            throw new MetadataProviderUnavailableException(
+                                MetadataProviderOrchestrator.AuthorInfoOperation,
+                                BuildHardcoverAuthorId(authorId),
+                                new InvalidOperationException("Hardcover returned an identified bibliography work without a usable title."),
+                                authoritativeBibliographyEndedEarly: false,
+                                authoritativeBibliographyMissingWorkTitle: true);
+                        }
+
+                        var book = MapDirectBookResult(bookData);
                         if (booksById.TryAdd(bookId, book))
                         {
                             OverrideBookAuthor(book, authorId, authorName);
@@ -1718,7 +1740,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
                     throw new InvalidOperationException("Hardcover returned the author but no usable bibliography works.");
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not MetadataProviderUnavailableException { AuthoritativeBibliographyMissingWorkTitle: true })
             {
                 if (ex is not TooManyRequestsException { IsLocallySuppressed: true })
                 {
@@ -1962,6 +1984,20 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             book.AuthorMetadata = metadata;
         }
 
+        private static MetadataProviderUnavailableException IncompleteWorkTitle(string workId)
+        {
+            return new MetadataProviderUnavailableException(
+                "get-book-info",
+                $"hardcover:work:{workId}",
+                new InvalidOperationException("Hardcover returned the requested work without a usable title."));
+        }
+
+        private static string ReadWorkTitle(JToken token)
+        {
+            var title = token?.Type == JTokenType.String ? token.Value<string>()?.Trim() : null;
+            return title.IsNullOrWhiteSpace() ? null : title;
+        }
+
         private static Book MapDirectBookResult(JToken bookData, JObject exactEdition = null, (int Id, string Name)? verifiedAuthor = null)
         {
             if (bookData == null)
@@ -1970,12 +2006,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
             }
 
             var id = bookData.Value<int?>("id")?.ToString();
-            if (id.IsNullOrWhiteSpace())
+            var title = ReadWorkTitle(bookData["title"]);
+            if (id.IsNullOrWhiteSpace() || title == null)
             {
                 return null;
             }
 
-            var title = bookData.Value<string>("title") ?? id;
             var slug = bookData.Value<string>("slug");
             var description = bookData.Value<string>("description");
             var releaseDate = bookData.Value<string>("release_date");
@@ -2411,7 +2447,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         private void ValidateSearchResults(List<HardcoverSearchResult> results)
         {
             var missingIds = results.Count(r => r.Id.IsNullOrWhiteSpace());
-            var missingTitles = results.Count(r => r.Title.IsNullOrWhiteSpace());
+            var missingTitles = results.Count(r => ReadWorkTitle(r.Title) == null);
             var missingAuthors = results.Count(r =>
                 (r.Contributions == null || !r.Contributions.Any()) &&
                 (r.AuthorNames == null || !r.AuthorNames.Any()));
@@ -2423,7 +2459,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
             if (missingTitles > 0)
             {
-                _logger.Debug("Hardcover returned {0}/{1} result(s) with missing titles for book search — ID will be used as fallback title", missingTitles, results.Count);
+                _logger.Debug("Hardcover returned {0}/{1} book search results without usable titles. These results will be skipped.", missingTitles, results.Count);
             }
 
             if (missingAuthors > 0)
@@ -2466,12 +2502,12 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
 
         private static Book MapBook(HardcoverSearchResult result)
         {
-            if (result == null || result.Id.IsNullOrWhiteSpace())
+            var title = ReadWorkTitle(result?.Title);
+            if (title == null || result.Id.IsNullOrWhiteSpace())
             {
                 return null;
             }
 
-            var title = result.Title.IsNotNullOrWhiteSpace() ? result.Title.Trim() : result.Id;
             var contributor = result.Contributions?.FirstOrDefault(x => x?.Author?.Name.IsNotNullOrWhiteSpace() == true);
             var authorName = contributor?.Author?.Name?.Trim()
                              ?? result.AuthorNames?.FirstOrDefault(x => x.IsNotNullOrWhiteSpace())?.Trim()
@@ -2901,7 +2937,7 @@ namespace NzbDrone.Core.MetadataSource.Hardcover
         public string Id { get; set; }
 
         [JsonProperty("title")]
-        public string Title { get; set; }
+        public JToken Title { get; set; }
 
         [JsonProperty("description")]
         public string Description { get; set; }

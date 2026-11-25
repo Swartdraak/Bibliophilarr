@@ -62,17 +62,18 @@ namespace NzbDrone.Core.Test.MusicTests
             Author CreateRequest(string name) => new () { Name = name, ForeignAuthorId = canonicalId, Path = Path.Combine(TempFolder, name) };
         }
 
-        [Test]
-        public void should_not_create_storage_for_a_new_unattended_author_with_an_incomplete_authoritative_bibliography()
+        [TestCase("OL12345A", "openlibrary:author:OL12345A", true)]
+        [TestCase("hardcover:author:123", "hardcover:author:123", false)]
+        public void should_not_create_storage_for_a_new_unattended_author_with_an_incomplete_authoritative_bibliography(
+            string providerId, string sourceId, bool endedEarly)
         {
-            const string providerId = "OL12345A";
-            const string sourceId = "openlibrary:author:" + providerId;
             var failure = new MetadataProviderUnavailableException(
                 MetadataProviderOrchestrator.AuthorInfoOperation,
                 sourceId,
-                new InvalidOperationException("Fixture returned an empty page before its declared total."),
-                authoritativeBibliographyEndedEarly: true,
-                authorBibliographyProgress: (1, 1, 2));
+                new InvalidOperationException("Fixture returned an incomplete bibliography."),
+                authoritativeBibliographyEndedEarly: endedEarly,
+                authorBibliographyProgress: endedEarly ? (1, 1, 2) : null,
+                authoritativeBibliographyMissingWorkTitle: !endedEarly);
             Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableDualFormatTracking).Returns(true);
             var provider = Mocker.GetMock<IMetadataProviderOrchestrator>();
             provider.Setup(service => service.GetAuthorInfo(providerId, false)).Throws(failure);

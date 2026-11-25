@@ -110,7 +110,7 @@ namespace NzbDrone.Core.Books
                 _logger.Warn(message, LogSanitizer.Sanitize(foreignId));
                 return null;
             }
-            catch (MetadataProviderUnavailableException ex) when (!ex.AuthorBibliographyProgress.HasValue)
+            catch (MetadataProviderUnavailableException ex) when (!ex.AuthorBibliographyProgress.HasValue && !ex.AuthoritativeBibliographyMissingWorkTitle)
             {
                 _logger.Warn(ex, "Metadata lookup did not complete for author id '{0}'. Keeping the existing author and metadata.", LogSanitizer.Sanitize(foreignId));
                 throw;
@@ -129,6 +129,16 @@ namespace NzbDrone.Core.Books
                     progress.PageOffset,
                     progress.DistinctEntries,
                     progress.ReportedTotal);
+                return;
+            }
+
+            if (error is MetadataProviderUnavailableException { AuthoritativeBibliographyMissingWorkTitle: true } untitled)
+            {
+                var provider = MetadataProviderOrchestrator.InferProviderFromScopedId(untitled.EntityId) ?? "unidentified provider";
+                _logger.Error(
+                    "Author bibliography for local author {0} from {1} included a work without a usable title. Keeping the existing author and metadata.",
+                    author.Id,
+                    provider);
                 return;
             }
 
@@ -909,7 +919,7 @@ namespace NzbDrone.Core.Books
                 {
                     switch (e)
                     {
-                        case MetadataProviderUnavailableException unavailable when unavailable.AuthorBibliographyProgress.HasValue || unavailable.AuthoritativeBibliographyEndedEarly:
+                        case MetadataProviderUnavailableException unavailable when unavailable.AuthorBibliographyProgress.HasValue || unavailable.AuthoritativeBibliographyIncomplete:
                             incompleteBibliographies++;
                             break;
                         case MetadataProviderUnavailableException:

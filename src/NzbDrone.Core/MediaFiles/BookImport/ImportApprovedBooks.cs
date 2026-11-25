@@ -640,6 +640,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                                 progress.DistinctEntries,
                                 progress.ReportedTotal);
                         }
+                        else if (unattended && bibliographyUnavailable &&
+                                 e is MetadataProviderUnavailableException { AuthoritativeBibliographyMissingWorkTitle: true } untitled &&
+                                 MetadataProviderOrchestrator.InferProviderFromScopedId(untitled.EntityId) is { } titleProvider)
+                        {
+                            _logger.Error(
+                                "Library import held with {0}: {1} author bibliography included a work without a usable title.",
+                                LibraryImportHoldReason.AuthorBibliographyUnavailable,
+                                titleProvider);
+                        }
                         else
                         {
                             _logger.Error(e, "Failed to add author {0}", author);

@@ -441,7 +441,8 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     stopwatch.Stop();
                     _telemetry.Record(provider.ProviderName, operationName, stopwatch.ElapsedMilliseconds, false, false, false);
-                    if (ex is MetadataProviderUnavailableException { AuthorBibliographyProgress: not null })
+                    if (ex is MetadataProviderUnavailableException { AuthorBibliographyProgress: not null }
+                        or MetadataProviderUnavailableException { AuthoritativeBibliographyMissingWorkTitle: true })
                     {
                         _logger.Warn("Metadata provider '{0}' returned an incomplete bibliography during {1}", provider.ProviderName, operationName);
                     }
