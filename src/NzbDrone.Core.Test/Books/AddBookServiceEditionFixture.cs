@@ -64,6 +64,33 @@ namespace NzbDrone.Core.Test.BooksTests
             result.Editions.Value.Where(edition => edition.Monitored).Should().ContainSingle().Which.Should().BeSameAs(_second);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_the_requested_work_field_for_a_missing_provider_work(bool scalar)
+        {
+            const string workId = "hardcover:work:301";
+            const string editionId = "hardcover:source-edition:302";
+            var request = new Book
+            {
+                ForeignBookId = workId,
+                ForeignEditionId = editionId,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Monitored = true } }
+            };
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(provider => provider.GetBookInfo(workId))
+                .Throws(new BookNotFoundException(workId));
+
+            var add = () => scalar ? Subject.AddBookByExactEdition(request, 0) : Subject.AddBook(request);
+            var error = add.Should().Throw<ValidationException>().Which;
+
+            var failure = error.Errors.Should().ContainSingle().Which;
+            failure.PropertyName.Should().Be(nameof(Book.ForeignBookId));
+            failure.AttemptedValue.Should().Be(workId);
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+        }
+
         [TestCase("hardcover:edition:301", "Ebook", true)]
         [TestCase("hardcover:source-edition:302", "Print", false)]
         [TestCase("hardcover:source-edition:302", null, true)]

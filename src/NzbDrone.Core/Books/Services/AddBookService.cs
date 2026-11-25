@@ -318,11 +318,11 @@ namespace NzbDrone.Core.Books
             }
             catch (BookNotFoundException)
             {
-                _logger.Error("Book with Foreign Id {0} was not found, it may have been removed from OpenLibrary.", LogSanitizer.Sanitize(foreignBookId));
+                _logger.Error("Book with provider ID {0} was not found by the metadata provider.", LogSanitizer.Sanitize(foreignBookId));
 
                 throw new ValidationException(new List<ValidationFailure>
                                               {
-                                                  new ValidationFailure("OpenLibraryId", "A book with this ID was not found", foreignBookId)
+                                                  new ValidationFailure(nameof(Book.ForeignBookId), "A book with this provider ID was not found", foreignBookId)
                                               });
             }
         }
