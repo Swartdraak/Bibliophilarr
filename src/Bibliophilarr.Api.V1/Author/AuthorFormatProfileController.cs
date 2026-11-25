@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Bibliophilarr.Http;
 using Bibliophilarr.Http.REST;
@@ -47,9 +48,11 @@ namespace Bibliophilarr.Api.V1.Author
         }
 
         [RestPutById]
-        public ActionResult<AuthorFormatProfileResource> Update([FromRoute] int id, [FromBody] AuthorFormatProfileResource resource)
+        public ActionResult<AuthorFormatProfileResource> Update([FromBody] AuthorFormatProfileResource resource)
         {
-            if (resource.Id != id)
+            // The REST filter fills resource.Id from the route when the body omits it.
+            var id = resource.Id;
+            if (id <= 0 || (RouteData.Values.TryGetValue("id", out var routeId) && routeId != null && Convert.ToInt32(routeId) != id))
             {
                 throw new BadRequestException("The format profile does not match the requested ID.");
             }
