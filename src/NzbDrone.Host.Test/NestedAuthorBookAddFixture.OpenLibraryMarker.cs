@@ -26,8 +26,9 @@ namespace NzbDrone.Host.Test
         private const string MarkerUnownedEdition = "openlibrary:edition:OL991122M";
         private const string SeededOverview = "Verified incumbent metadata without a library author.";
 
-        [Test]
-        public async Task ShouldAtomicallyReuseExactMetadataForAFirstBookAddedFromAnOpenLibraryWorkMarker()
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task ShouldAtomicallyReuseExactMetadataForAFirstBookAddedFromOpenLibrary(bool selectExactEdition)
         {
             var directory = Directory.CreateTempSubdirectory("bibliophilarr-marker-owner-");
             var appData = directory.CreateSubdirectory("data").FullName;
@@ -90,7 +91,12 @@ namespace NzbDrone.Host.Test
                         ReadMarkerAuthor(database).Should().Be((seedId, SeededOverview, 0));
                         var before = GetConflictCatalogueCounts(database);
 
-                        var conflict = BookRequest(MarkerConflictingWork, MarkerConflictingWork, "Colliding Marker Work");
+                        var conflict = BookRequest(MarkerConflictingWork, selectExactEdition ? MarkerOwnedEdition : MarkerConflictingWork, "Colliding Marker Work");
+                        if (selectExactEdition)
+                        {
+                            conflict.Remove("editions");
+                        }
+
                         conflict["author"] = AuthorSettings(MarkerNewAuthor);
                         await Post(client, "book", conflict, HttpStatusCode.Conflict, token);
 
@@ -102,7 +108,12 @@ namespace NzbDrone.Host.Test
                         var winner = await Get(client, $"book/{winnerId}", token);
                         winner.GetProperty("foreignEditionId").GetString().Should().Be(MarkerOwnedEdition);
 
-                        var valid = BookRequest(MarkerValidWork, MarkerValidWork, "Independent Marker Work");
+                        var valid = BookRequest(MarkerValidWork, selectExactEdition ? MarkerUnownedEdition : MarkerValidWork, "Independent Marker Work");
+                        if (selectExactEdition)
+                        {
+                            valid.Remove("editions");
+                        }
+
                         valid["author"] = AuthorSettings(MarkerNewAuthor);
                         var added = await Post(client, "book", valid, HttpStatusCode.Created, token);
                         newAuthorId = added.GetProperty("authorId").GetInt32();

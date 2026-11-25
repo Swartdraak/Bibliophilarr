@@ -84,19 +84,23 @@ namespace NzbDrone.Core.Books
 
             var authorSourceId = provider.Item1;
             var authorClaim = book.Author?.Value;
-            var providerOwners = provider.Item3?.Count(author => author?.ForeignAuthorId == authorSourceId);
-            var owner = !string.IsNullOrWhiteSpace(authorSourceId) &&
-                        providerOwners == 1 && providerBook.AuthorMetadata?.Value?.ForeignAuthorId == authorSourceId &&
-                        authorClaim?.Metadata?.Value?.ForeignAuthorId == authorSourceId
-                ? _authorService.FindById(authorSourceId)
-                : null;
-            if (owner is not { Id: > 0, AuthorMetadataId: > 0 } || owner.Metadata?.Value?.ForeignAuthorId != authorSourceId ||
-                (authorClaim.Id != 0 && authorClaim.Id != owner.Id) ||
-                (claimedAuthorId != 0 && claimedAuthorId != owner.Id))
+            var providerOwners = provider.Item3?.Where(author => author?.ForeignAuthorId == authorSourceId).Take(2).ToList();
+            var sourceMatches = !string.IsNullOrWhiteSpace(authorSourceId) &&
+                                providerOwners?.Count == 1 &&
+                                providerBook.AuthorMetadata?.Value?.ForeignAuthorId == authorSourceId &&
+                                authorClaim?.Metadata?.Value?.ForeignAuthorId == authorSourceId;
+            var owner = sourceMatches ? _authorService.FindById(authorSourceId) : null;
+            var canCreateAuthor = sourceMatches && owner == null && authorClaim.Id == 0 && claimedAuthorId == 0 &&
+                                  providerOwners[0].Id == 0 && !string.IsNullOrWhiteSpace(providerOwners[0].Name) &&
+                                  IsSourceAuthor(book.ForeignBookId, authorSourceId);
+            if (!canCreateAuthor &&
+                (owner is not { Id: > 0, AuthorMetadataId: > 0 } || owner.Metadata?.Value?.ForeignAuthorId != authorSourceId ||
+                 (authorClaim.Id != 0 && authorClaim.Id != owner.Id) ||
+                 (claimedAuthorId != 0 && claimedAuthorId != owner.Id)))
             {
                 throw new ValidationException(new[]
                 {
-                    new ValidationFailure("Author.ForeignAuthorId", "The selected work must belong to the specified existing author")
+                    new ValidationFailure("Author.ForeignAuthorId", "The book provider did not verify the selected work for the specified author")
                 });
             }
 
@@ -109,12 +113,30 @@ namespace NzbDrone.Core.Books
             book.ForeignEditionId = selectedEdition.ForeignEditionId;
             book.Added = DateTime.UtcNow;
             book.Editions = new List<Edition> { selectedEdition };
-            book.AuthorMetadata = owner.Metadata.Value;
+            book.AuthorMetadata = canCreateAuthor ? providerOwners[0] : owner.Metadata.Value;
             book.AddOptions.AddType = BookAddType.Manual;
             selectedEdition.Monitored = true;
             selectedEdition.ManualAdd = true;
 
+            if (canCreateAuthor)
+            {
+                ValidateNewAuthor(authorClaim);
+                return _addAuthorService.AddNewAuthorWithBook(authorClaim, book, doRefresh: true);
+            }
+
             return SaveBook(book, owner, doRefresh: true);
+        }
+
+        private static bool IsSourceAuthor(string workId, string authorId)
+        {
+            if (workId.StartsWith("hardcover:work:", StringComparison.Ordinal))
+            {
+                const string prefix = "hardcover:author:";
+                return authorId.StartsWith(prefix, StringComparison.Ordinal) &&
+                       int.TryParse(authorId.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id > 0;
+            }
+
+            return IsOpenLibraryToken(OpenLibraryIdNormalizer.NormalizeAuthorId(authorId), 'A');
         }
 
         private static bool IsSourceEdition(string workId, string editionId)
@@ -163,29 +185,7 @@ namespace NzbDrone.Core.Books
             if (dbAuthor == null)
             {
                 var author = book.Author?.Value;
-                if (string.IsNullOrWhiteSpace(author?.Path) && string.IsNullOrWhiteSpace(author?.RootFolderPath))
-                {
-                    throw new ValidationException(new List<ValidationFailure>
-                    {
-                        new ("Author.RootFolderPath", "A root folder or author path is required to add a new author")
-                    });
-                }
-
-                var profileErrors = new List<ValidationFailure>();
-                if (author.QualityProfileId <= 0)
-                {
-                    profileErrors.Add(new ValidationFailure("Author.QualityProfileId", "A quality profile is required to add a new author"));
-                }
-
-                if (author.MetadataProfileId <= 0)
-                {
-                    profileErrors.Add(new ValidationFailure("Author.MetadataProfileId", "A metadata profile is required to add a new author"));
-                }
-
-                if (profileErrors.Count > 0)
-                {
-                    throw new ValidationException(profileErrors);
-                }
+                ValidateNewAuthor(author);
 
                 var metadata = book.AuthorMetadata.Value;
                 if (confirmedNewAuthorSelection && book.Id == 0 && author.Id == 0)
@@ -198,6 +198,33 @@ namespace NzbDrone.Core.Books
             }
 
             return SaveBook(book, dbAuthor, doRefresh);
+        }
+
+        private static void ValidateNewAuthor(Author author)
+        {
+            if (string.IsNullOrWhiteSpace(author?.Path) && string.IsNullOrWhiteSpace(author?.RootFolderPath))
+            {
+                throw new ValidationException(new List<ValidationFailure>
+                {
+                    new ("Author.RootFolderPath", "A root folder or author path is required to add a new author")
+                });
+            }
+
+            var profileErrors = new List<ValidationFailure>();
+            if (author.QualityProfileId <= 0)
+            {
+                profileErrors.Add(new ValidationFailure("Author.QualityProfileId", "A quality profile is required to add a new author"));
+            }
+
+            if (author.MetadataProfileId <= 0)
+            {
+                profileErrors.Add(new ValidationFailure("Author.MetadataProfileId", "A metadata profile is required to add a new author"));
+            }
+
+            if (profileErrors.Count > 0)
+            {
+                throw new ValidationException(profileErrors);
+            }
         }
 
         private Book SaveBook(Book book, Author author, bool doRefresh)
