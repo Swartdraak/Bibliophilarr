@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using FluentAssertions;
 using Moq;
 using NLog;
@@ -74,6 +76,68 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
         }
 
         [Test]
+        public void should_continue_matching_between_milestones_when_a_progress_log_is_busy()
+        {
+            const int releaseCount = 52;
+            const string initialMilestone = "Checked catalogue matches for 25 of 52 releases.";
+            var wait = TimeSpan.FromSeconds(10);
+            var edition = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "EPUB", IsEbook = true };
+            var book = GivenBook(1, "Rowan Vale", "The Distant Light", edition);
+            var files = Enumerable.Range(0, releaseCount)
+                .Select(index => TaggedFile($"/library/{index}/Rowan Vale - The Distant Light.epub", book, Quality.EPUB)).ToArray();
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.IdentificationWorkerCount).Returns(2);
+
+            using var firstMilestoneEntered = new ManualResetEventSlim();
+            using var nextMatchStarted = new ManualResetEventSlim();
+            var messages = new List<string>();
+            var matchesStarted = 0;
+            var waitingWorkerSawMilestone = false;
+            var continuedWhileLogging = false;
+            var target = new MatchProgressTarget(message =>
+            {
+                messages.Add(message);
+                if (message == initialMilestone)
+                {
+                    firstMilestoneEntered.Set();
+                    continuedWhileLogging = nextMatchStarted.Wait(wait);
+                }
+            });
+            var configuration = new LoggingConfiguration();
+            configuration.AddRule(LogLevel.Info, LogLevel.Info, target);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(IdentificationService)));
+
+            var editions = Mocker.GetMock<IEditionService>();
+            editions.Setup(service => service.GetEditionsByBook(book.Id)).Returns(() =>
+            {
+                var started = Interlocked.Increment(ref matchesStarted);
+                if (started == 1)
+                {
+                    // Keep one worker in matching until the other worker is busy logging.
+                    waitingWorkerSawMilestone = firstMilestoneEntered.Wait(wait);
+                }
+                else if (firstMilestoneEntered.IsSet)
+                {
+                    nextMatchStarted.Set();
+                }
+
+                return new List<Edition> { edition };
+            });
+
+            var result = Identify(files);
+
+            waitingWorkerSawMilestone.Should().BeTrue("the initially blocked match overlapped the milestone callback");
+            continuedWhileLogging.Should().BeTrue("the other worker can finish a non-milestone match and start another");
+            editions.Verify(service => service.GetEditionsByBook(book.Id), Times.Exactly(releaseCount));
+            result.Should().HaveCount(releaseCount).And.OnlyContain(release => release.Edition == edition);
+            messages.Should().Equal(
+                "Checking catalogue matches (52 total).",
+                initialMilestone,
+                "Checked catalogue matches for 50 of 52 releases.",
+                "Checked catalogue matches for 52 of 52 releases.");
+        }
+
+        [Test]
         public void should_match_each_same_title_file_to_the_correct_author_and_edition()
         {
             var firstEdition = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "Audiobook" };
@@ -123,6 +187,21 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             audioFile.Edition.Should().BeNull();
             audioFile.Book.Should().BeNull();
             audioFile.Author.Should().BeNull();
+        }
+
+        private sealed class MatchProgressTarget : Target
+        {
+            private readonly Action<string> _write;
+
+            public MatchProgressTarget(Action<string> write)
+            {
+                _write = write;
+            }
+
+            protected override void Write(LogEventInfo logEvent)
+            {
+                _write(logEvent.FormattedMessage);
+            }
         }
 
         private Book GivenBook(int id, string authorName, string title, params Edition[] editions)

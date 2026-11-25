@@ -111,6 +111,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             const int progressInterval = 25;
             var checkedReleases = 0;
+            var reportedReleases = 0;
             var progressLock = new object();
             if (releases.Count > 0)
             {
@@ -137,12 +138,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 }
                 finally
                 {
-                    lock (progressLock)
+                    var completed = Interlocked.Increment(ref checkedReleases);
+                    if (completed % progressInterval == 0 || completed == releases.Count)
                     {
-                        checkedReleases++;
-                        if (checkedReleases % progressInterval == 0 || checkedReleases == releases.Count)
+                        lock (progressLock)
                         {
-                            _logger.ProgressInfo("Checked catalogue matches for {0} of {1} releases.", checkedReleases, releases.Count);
+                            // A later milestone may acquire the lock first. Emit any earlier milestones in order.
+                            while (reportedReleases < completed)
+                            {
+                                reportedReleases += Math.Min(progressInterval, releases.Count - reportedReleases);
+                                _logger.ProgressInfo("Checked catalogue matches for {0} of {1} releases.", reportedReleases, releases.Count);
+                            }
                         }
                     }
                 }
