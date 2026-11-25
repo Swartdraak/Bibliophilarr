@@ -15,6 +15,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
@@ -325,6 +326,7 @@ namespace NzbDrone.Core.MediaFiles
 
             changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
             _mediaFileService.SetUnmappedReasons(changedReasons);
+            QueueNewEmbeddedCovers(importResults, knownFiles);
 
             // Report the retained reasons for evaluated paths rather than just this attempt's decisions.
             foreach (var file in knownFiles.Where(file => file.EditionId == 0 &&
@@ -363,6 +365,50 @@ namespace NzbDrone.Core.MediaFiles
             _logger.Debug("Library import finished for {0} scan folders in {1}.", scannedFolders.Count, importStopwatch.Elapsed);
         }
 
+        private void QueueNewEmbeddedCovers(List<ImportResult> results, List<BookFile> files)
+        {
+            if (results == null || results.Count == 0)
+            {
+                return;
+            }
+
+            var commands = results.Where(result => result.Result == ImportResultType.Imported)
+                .Select(result => result.ImportDecision.Item)
+                .Where(item => item.Book?.Id > 0 && Guid.TryParseExact(item.Book.CanonicalId, "N", out _) &&
+                    item.Edition?.Id > 0 && item.Edition.BookId == item.Book.Id &&
+                    !item.Edition.IsEbook && ImportFormat.ForEdition(item.Edition, requireExplicitFormat: true) == FormatType.Audiobook &&
+                    string.Equals(Path.GetExtension(item.Path), ".m4b", StringComparison.OrdinalIgnoreCase))
+                .Join(
+                    files.Where(file => file.Id > 0 && file.CalibreId == 0 && file.Size > 0 && file.Modified != default && !file.UnmappedReason.HasValue),
+                    item => item.Path,
+                    file => file.Path,
+                    (item, file) => (Item: item, File: file),
+                    PathEqualityComparer.Instance)
+                .Where(match => match.Item.Edition.Id == match.File.EditionId)
+                .DistinctBy(match => (match.Item.Book.Id, match.File.Id, match.File.EditionId, match.File.Size, match.File.Modified))
+                .GroupBy(match => match.Item.Book.Id)
+                .Where(group => group.Count() == 1)
+                .Select(group => group.Single())
+                .Select(match => new RecoverImportedBookCoverCommand
+                {
+                    BookId = match.Item.Book.Id,
+                    CanonicalId = match.Item.Book.CanonicalId,
+                    FileId = match.File.Id,
+                    EditionId = match.File.EditionId,
+                    Size = match.File.Size,
+                    ModifiedTicks = _connectionStringFactory.MainDbConnection.DatabaseType == DatabaseType.PostgreSQL
+                        ? PostgresTimestampTicks(match.File.Modified)
+                        : match.File.Modified.Ticks,
+                    Trigger = CommandTrigger.Scheduled
+                })
+                .ToList();
+
+            if (commands.Count > 0)
+            {
+                _eventAggregator.PublishEvent(new EmbeddedBookCoversImportedEvent(commands));
+            }
+        }
+
         private bool IsSameScannedFile(BookFile stored, LocalBook scanned)
         {
             if (stored.Size != scanned.Size || stored.Modified == default || scanned.Modified == default ||
@@ -381,9 +427,14 @@ namespace NzbDrone.Core.MediaFiles
                 return false;
             }
 
+            return stored.Modified.Ticks == PostgresTimestampTicks(scanned.Modified);
+        }
+
+        private static long PostgresTimestampTicks(DateTime modified)
+        {
             // Npgsql truncates fractional microseconds toward the PostgreSQL epoch.
-            var sinceEpoch = scanned.Modified - PostgresTimestampEpoch;
-            return stored.Modified.Ticks == scanned.Modified.Ticks - (sinceEpoch.Ticks % TimeSpan.TicksPerMicrosecond);
+            var sinceEpoch = modified - PostgresTimestampEpoch;
+            return modified.Ticks - (sinceEpoch.Ticks % TimeSpan.TicksPerMicrosecond);
         }
 
         private static bool IsPriorOccupiedAudiobookPart(BookFile file)

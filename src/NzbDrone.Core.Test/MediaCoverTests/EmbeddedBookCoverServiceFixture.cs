@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using Moq;
 using NUnit.Framework;
@@ -13,6 +15,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
@@ -247,6 +250,139 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Recover(_book.Id).Should().BeFalse();
 
             Subject.GetUrl(_book.Id).Should().BeNull();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_refuse_stale_automatic_file_identity_before_opening_original_media(bool relink)
+        {
+            var stored = Db.Single<BookFile>();
+            var command = ForImport(_book, stored);
+            if (relink)
+            {
+                stored.EditionId = 0;
+            }
+            else
+            {
+                stored.Modified = stored.Modified.AddSeconds(2);
+            }
+
+            Db.Update(stored);
+
+            Subject.RecoverImported(command).Should().BeFalse();
+
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(It.IsAny<string>()), Times.Never);
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.CreateFolder(It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
+        public void should_refuse_the_worker_entry_for_a_manually_submitted_command()
+        {
+            var command = ForImport(_book, Db.Single<BookFile>());
+            command.Trigger = CommandTrigger.Manual;
+
+            Subject.RecoverImported(command).Should().BeFalse();
+
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
+        public async Task should_attempt_another_book_after_manual_recovery_releases_the_gate()
+        {
+            var other = Db.Insert(new Book
+            {
+                AuthorMetadataId = _book.AuthorMetadataId,
+                ForeignBookId = "hardcover:work:23",
+                Title = "Other work",
+                CleanTitle = "Other work",
+                TitleSlug = "other-work"
+            });
+            var edition = Db.Insert(new Edition
+            {
+                BookId = other.Id,
+                ForeignEditionId = "hardcover:edition:45",
+                Title = "Other work",
+                TitleSlug = "other-work-audio",
+                Format = "Audiobook"
+            });
+            var path = Path.Combine(_library, "Other work.m4b");
+            File.WriteAllBytes(path, _original);
+            var otherFile = Db.Insert(new BookFile
+            {
+                EditionId = edition.Id,
+                Path = path,
+                Size = _original.Length,
+                Modified = File.GetLastWriteTimeUtc(path),
+                Quality = new QualityModel(Quality.M4B)
+            });
+            var current = Db.All<BookFile>().Single(file => file.Id == otherFile.Id);
+            var command = ForImport(other, current);
+
+            using var insideManual = new ManualResetEventSlim();
+            using var releaseManual = new ManualResetEventSlim();
+            using var startedWorker = new ManualResetEventSlim();
+            Mocker.GetMock<IDiskProvider>().Setup(disk => disk.CreateFolder(It.IsAny<string>()))
+                .Callback<string>(folder =>
+                {
+                    if (folder == Path.Combine(TempFolder, "EmbeddedBookCovers", _book.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    {
+                        insideManual.Set();
+                        if (!releaseManual.Wait(TimeSpan.FromSeconds(10)))
+                        {
+                            throw new IOException("Timed out waiting for the test to release manual recovery.");
+                        }
+                    }
+
+                    Directory.CreateDirectory(folder);
+                });
+
+            var service = Subject;
+            var manual = Task.Run(() => service.Recover(_book.Id));
+            Task<bool> worker = null;
+            try
+            {
+                insideManual.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                worker = Task.Factory.StartNew(
+                    () =>
+                    {
+                        startedWorker.Set();
+                        return service.RecoverImported(command);
+                    },
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default);
+                startedWorker.Wait(TimeSpan.FromSeconds(5)).Should().BeTrue();
+                worker.Wait(TimeSpan.FromMilliseconds(200)).Should().BeFalse();
+            }
+            finally
+            {
+                releaseManual.Set();
+                await manual.WaitAsync(TimeSpan.FromSeconds(5));
+                if (worker != null)
+                {
+                    await worker.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+            }
+
+            manual.Result.Should().BeTrue();
+            worker.Result.Should().BeTrue();
+            service.GetUrl(_book.Id).Should().NotBeNull();
+            service.GetUrl(other.Id).Should().NotBeNull();
+            service.RecoverImported(command).Should().BeFalse("an exact duplicate must not publish another image event");
+        }
+
+        private static RecoverImportedBookCoverCommand ForImport(Book book, BookFile file)
+        {
+            return new RecoverImportedBookCoverCommand
+            {
+                BookId = book.Id,
+                CanonicalId = book.CanonicalId,
+                EditionId = file.EditionId,
+                FileId = file.Id,
+                Size = file.Size,
+                ModifiedTicks = file.Modified.Ticks,
+                Trigger = CommandTrigger.Scheduled
+            };
         }
 
         private static byte[] Box(ReadOnlySpan<byte> type, params byte[][] contents)

@@ -7,6 +7,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Test.Framework;
 
@@ -73,6 +74,21 @@ namespace NzbDrone.Core.Test.Messaging.Commands
             Mocker.GetMock<ICommandRepository>().Verify(
                 repository => repository.OrphanStarted(It.Is<IReadOnlyCollection<int>>(ids => ids.SequenceEqual(new[] { liveCommand.Id }))),
                 Times.Once);
+        }
+
+        [Test]
+        public void should_dedupe_exact_artwork_commands_but_keep_a_newer_file_version()
+        {
+            var version = DateTime.UtcNow.Ticks;
+            var first = Subject.Push(new RecoverImportedBookCoverCommand { BookId = 3, FileId = 22, EditionId = 19, ModifiedTicks = version }, CommandPriority.Low, CommandTrigger.Scheduled);
+            var duplicate = Subject.Push(new RecoverImportedBookCoverCommand { BookId = 3, FileId = 22, EditionId = 19, ModifiedTicks = version }, CommandPriority.Low, CommandTrigger.Scheduled);
+            var newer = Subject.Push(new RecoverImportedBookCoverCommand { BookId = 3, FileId = 22, EditionId = 19, ModifiedTicks = version + 100 }, CommandPriority.Low, CommandTrigger.Scheduled);
+
+            duplicate.Should().BeSameAs(first);
+            newer.Should().NotBeSameAs(first);
+            Subject.All().Should().BeEquivalentTo(new[] { first, newer });
+            first.Body.IsTypeExclusive.Should().BeTrue();
+            first.Body.RequiresDiskAccess.Should().BeFalse();
         }
 
         [Test]

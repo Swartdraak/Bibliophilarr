@@ -17,10 +17,12 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -694,6 +696,82 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
             Mocker.GetMock<ICommandResultReporter>().Verify(reporter => reporter.Report(CommandResult.Unsuccessful), Times.Once);
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files =>
                 files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
+        }
+
+        [TestCase(".M4B", 19, true, true)]
+        [TestCase(".epub", 19, true, false)]
+        [TestCase(".m4b", 0, true, false)]
+        [TestCase(".m4b", 20, true, false)]
+        [TestCase(".m4b", 19, false, false)]
+        public void should_handoff_only_a_confirmed_new_m4b_after_final_file_writes(string extension, int persistedEdition, bool imported, bool expected)
+        {
+            GivenAuthorFolder();
+            var path = Path.Combine(_author.Path, "City Lights" + extension);
+            GivenFiles(new[] { path });
+            var changed = new DateTime(2024, 2, 9, 15, 30, 0, DateTimeKind.Utc);
+            var book = new Book { Id = 8, CanonicalId = Guid.NewGuid().ToString("N") };
+            var edition = new Edition { Id = 19, BookId = book.Id, Format = "Audiobook" };
+            var stored = new BookFile
+            {
+                Id = 42,
+                Path = path,
+                EditionId = persistedEdition,
+                Size = 1234,
+                Modified = changed.AddHours(-1),
+                Quality = new QualityModel(Quality.M4B)
+            };
+            var decision = new ImportDecision<LocalBook>(new LocalBook
+            {
+                Path = path,
+                Book = book,
+                Edition = edition,
+                Size = 5678,
+                Modified = changed,
+                Quality = new QualityModel(Quality.M4B)
+            });
+            var importResult = imported
+                ? new ImportResult(decision)
+                : ImportResult.ExistingFilePreserved(decision, stored.Id, "Existing file held in place");
+            var decisions = new List<ImportDecision<LocalBook>> { decision };
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(service => service.Import(decisions, false, null, ImportMode.Auto))
+                .Returns(new List<ImportResult> { importResult, importResult });
+
+            var writes = new List<string>();
+            var mediaFiles = Mocker.GetMock<IMediaFileService>();
+            mediaFiles.Setup(service => service.GetFilesWithBasePath(_author.Path)).Returns(new List<BookFile> { stored });
+            mediaFiles.Setup(service => service.UpdateScannedFileInfo(It.IsAny<List<BookFile>>())).Callback(() => writes.Add("metadata"));
+            mediaFiles.Setup(service => service.SetUnmappedReasons(It.IsAny<List<BookFile>>())).Callback(() => writes.Add("holds"));
+            IReadOnlyList<RecoverImportedBookCoverCommand> commands = Array.Empty<RecoverImportedBookCoverCommand>();
+            Mocker.GetMock<IEventAggregator>().Setup(events => events.PublishEvent(It.IsAny<EmbeddedBookCoversImportedEvent>()))
+                .Callback<EmbeddedBookCoversImportedEvent>(message =>
+                {
+                    writes.Add("artwork");
+                    commands = message.Commands;
+                });
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            if (expected)
+            {
+                writes.Should().Equal("metadata", "holds", "artwork");
+                var work = commands.Should().ContainSingle().Which;
+                work.BookId.Should().Be(book.Id);
+                work.CanonicalId.Should().Be(book.CanonicalId);
+                work.FileId.Should().Be(stored.Id);
+                work.EditionId.Should().Be(edition.Id);
+                work.Size.Should().Be(5678);
+                work.ModifiedTicks.Should().Be(changed.Ticks);
+                work.Trigger.Should().Be(CommandTrigger.Scheduled);
+            }
+            else
+            {
+                writes.Should().Equal("metadata", "holds");
+                commands.Should().BeEmpty();
+            }
         }
 
         [Test]

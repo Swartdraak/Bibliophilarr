@@ -19,6 +19,7 @@ using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.RootFolders;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
@@ -30,6 +31,7 @@ namespace NzbDrone.Core.MediaCover
     public interface IEmbeddedBookCoverService
     {
         bool Recover(int bookId);
+        bool RecoverImported(RecoverImportedBookCoverCommand command);
         string GetUrl(int bookId);
         string GetPath(int bookId, int fileId, string token);
     }
@@ -91,42 +93,24 @@ namespace NzbDrone.Core.MediaCover
 
             try
             {
-                var source = Select(bookId);
-                if (source == null || !IsRegisteredLocalPath(source.Path))
-                {
-                    return false;
-                }
-
-                var token = Token(bookId, source);
-                var destination = CachePath(bookId, source.FileId, token);
-                if (HasImage(destination))
-                {
-                    return true;
-                }
-
-                using var handle = OpenSource(source.Path);
-                if (handle == null || !TryGetVersion(handle, source, out var modified))
-                {
-                    return false;
-                }
-
-                using var input = new FileStream(handle, FileAccess.Read);
-                var cover = M4bCoverReader.Read(input);
-                if (cover == null || !TryGetVersion(handle, source, out var checkedModified) || checkedModified != modified)
-                {
-                    return false;
-                }
-
-                return StageAndPublish(bookId, source, destination, cover, handle, modified);
-            }
-            catch (Exception error) when (IsRecoverable(error))
-            {
-                _logger.Debug("Embedded cover recovery did not complete for work {0} ({1}).", bookId, error.GetType().Name);
-                return false;
+                return RecoverSelected(bookId, null);
             }
             finally
             {
                 Monitor.Exit(RecoveryLock);
+            }
+        }
+
+        public bool RecoverImported(RecoverImportedBookCoverCommand command)
+        {
+            if (!SupportsSafeOpen || command == null || command.Trigger != CommandTrigger.Scheduled || command.BookId <= 0)
+            {
+                return false;
+            }
+
+            lock (RecoveryLock)
+            {
+                return RecoverSelected(command.BookId, command);
             }
         }
 
@@ -186,6 +170,52 @@ namespace NzbDrone.Core.MediaCover
             {
                 return null;
             }
+        }
+
+        private bool RecoverSelected(int bookId, RecoverImportedBookCoverCommand command)
+        {
+            try
+            {
+                var source = Select(bookId);
+                if (source == null || !MatchesImport(source, command) || !IsRegisteredLocalPath(source.Path))
+                {
+                    return false;
+                }
+
+                var token = Token(bookId, source);
+                var destination = CachePath(bookId, source.FileId, token);
+                if (HasImage(destination))
+                {
+                    return command == null;
+                }
+
+                using var handle = OpenSource(source.Path);
+                if (handle == null || !TryGetVersion(handle, source, out var modified))
+                {
+                    return false;
+                }
+
+                using var input = new FileStream(handle, FileAccess.Read);
+                var cover = M4bCoverReader.Read(input);
+                if (cover == null || !TryGetVersion(handle, source, out var checkedModified) || checkedModified != modified)
+                {
+                    return false;
+                }
+
+                return StageAndPublish(bookId, source, destination, cover, handle, modified);
+            }
+            catch (Exception error) when (IsRecoverable(error))
+            {
+                _logger.Debug("Embedded cover recovery did not complete for work {0} ({1}).", bookId, error.GetType().Name);
+                return false;
+            }
+        }
+
+        private static bool MatchesImport(Candidate source, RecoverImportedBookCoverCommand command)
+        {
+            return command == null ||
+                (source.CanonicalId == command.CanonicalId && source.FileId == command.FileId &&
+                 source.EditionId == command.EditionId && source.Size == command.Size && source.Modified.Ticks == command.ModifiedTicks);
         }
 
         private Candidate Select(int bookId)
