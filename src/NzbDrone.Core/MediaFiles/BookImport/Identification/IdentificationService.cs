@@ -810,6 +810,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             release.Edition = best.Edition;
             release.Distance = best.Distance;
             release.ExistingTracks = best.ExtraTracks;
+            _logger.Debug("Reusing audiobook edition {0} instead of untyped edition {1} for work {2}", best.Edition.Id, selected.Id, work.Id);
         }
 
         private void RefineLocalEbookEdition(LocalEdition release, List<CandidateEdition> localCandidates, List<LocalBook> diskTracks, bool allowEpubAsin)
