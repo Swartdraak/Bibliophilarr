@@ -696,6 +696,7 @@
         "tags": [
           "Book"
         ],
+        "description": "Submit explicit editions, or omit editions and provide an exact Hardcover or Open Library edition and its existing author's provider ID.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -736,8 +737,11 @@
               }
             }
           },
+          "400": {
+            "description": "The requested edition, work, or author could not be verified for this add."
+          },
           "409": {
-            "description": "A provider edition is already owned by another catalogue book.",
+            "description": "The provider edition is already owned by another book, or the requested scalar work already exists.",
             "content": {
               "application/json": {
                 "schema": {

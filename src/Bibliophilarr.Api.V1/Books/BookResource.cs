@@ -16,6 +16,8 @@ namespace Bibliophilarr.Api.V1.Books
 {
     public class BookResource : RestResource
     {
+        private List<EditionResource> _editions;
+
         public string Title { get; set; }
         public string AuthorTitle { get; set; }
         public string SeriesTitle { get; set; }
@@ -43,8 +45,19 @@ namespace Bibliophilarr.Api.V1.Books
         public AddBookOptions AddOptions { get; set; }
         public string RemoteCover { get; set; }
         public DateTime? LastSearchTime { get; set; }
-        public List<EditionResource> Editions { get; set; }
+        public List<EditionResource> Editions
+        {
+            get => _editions;
+            set
+            {
+                _editions = value;
+                EditionsSpecified = true;
+            }
+        }
+
         public List<BookFormatStatusResource> FormatStatuses { get; set; }
+
+        internal bool EditionsSpecified { get; private set; }
 
         internal bool AllowsFormatMonitoring { get; set; }
 
