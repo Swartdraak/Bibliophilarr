@@ -70,7 +70,7 @@ namespace NzbDrone.Common.Http
 
         public virtual async Task<HttpResponse> ExecuteAsync(HttpRequest request)
         {
-            var cookieContainer = InitializeRequestCookies(request);
+            var cookieContainer = request.IgnoreStoredOriginCredentials ? new CookieContainer() : InitializeRequestCookies(request);
 
             var response = await ExecuteRequestAsync(request, cookieContainer);
 
@@ -230,7 +230,10 @@ namespace NzbDrone.Common.Http
                 response.OmitContentFromDiagnostics = true;
             }
 
-            HandleResponseCookies(response, cookieContainer);
+            if (!request.IgnoreStoredOriginCredentials)
+            {
+                HandleResponseCookies(response, cookieContainer);
+            }
 
             stopWatch.Stop();
             if (request.OmitSensitiveDiagnostics)

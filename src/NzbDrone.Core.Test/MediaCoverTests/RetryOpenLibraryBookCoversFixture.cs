@@ -50,8 +50,30 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IAuthorRepository>().VerifyNoOtherCalls();
             Mocker.GetMock<IOpenLibraryAuthorPortraitCache>().VerifyNoOtherCalls();
             Mocker.GetMock<IOpenLibraryBookCoverCache>().Verify(
-                cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
+                cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()),
                 Times.Never);
+        }
+
+        [Test]
+        public void should_charge_archive_hops_against_the_same_four_request_tick()
+        {
+            var books = Enumerable.Range(1, 5).Select(StoredBook).ToList();
+            var editions = books.Select(book => StoredEdition(book)).ToList();
+            Mocker.GetMock<IBookRepository>().Setup(repository => repository.GetArtworkRetryPage(0, 64)).Returns(books);
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(editions);
+            var attempted = new List<int>();
+            Mocker.GetMock<IOpenLibraryBookCoverCache>()
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, _, _, reserveRedirect) =>
+                {
+                    attempted.Add(id);
+                    reserveRedirect().Should().BeTrue();
+                    return OpenLibraryCoverRecovery.Recovered;
+                });
+
+            Subject.Execute(new RetryOpenLibraryBookCoversCommand());
+
+            attempted.Should().Equal(1, 2);
         }
 
         [Test]
@@ -71,13 +93,13 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var attempted = new List<int>();
             var bookCache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
             bookCache.SetupSequence(cache => cache.IsCoolingDown).Returns(true).Returns(false).Returns(false);
-            bookCache.Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
-                .Callback<int, string, string, Func<bool>, TimeSpan>((id, _, _, _, _) => attempted.Add(id))
+            bookCache.Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Callback<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, _, _, _) => attempted.Add(id))
                 .Returns(OpenLibraryCoverRecovery.Recovered);
 
             Mocker.GetMock<IOpenLibraryAuthorPortraitCache>()
-                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
-                .Returns<int, string, string, Func<bool>, TimeSpan>((id, _, _, stillSelected, timeout) =>
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, stillSelected, timeout, _) =>
                 {
                     stillSelected().Should().BeTrue();
                     timeout.Should().Be(TimeSpan.FromSeconds(5));
@@ -115,11 +137,11 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(new List<Edition> { edition });
 
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
-                .Setup(cache => cache.TryRecover(1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Setup(cache => cache.TryRecover(1, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
                 .Callback(() => _clock.ElapsedTicks += TimeSpan.FromSeconds(10).Ticks)
                 .Returns(OpenLibraryCoverRecovery.Recovered);
             var portraitCache = Mocker.GetMock<IOpenLibraryAuthorPortraitCache>();
-            portraitCache.SetupSequence(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+            portraitCache.SetupSequence(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
                 .Returns(OpenLibraryCoverRecovery.Deferred)
                 .Returns(OpenLibraryCoverRecovery.Recovered);
 
@@ -136,10 +158,10 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             subject.Execute(new RetryOpenLibraryBookCoversCommand());
             authorRepository.VerifyNoOtherCalls();
             subject.Execute(new RetryOpenLibraryBookCoversCommand());
-            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Once);
+            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Once);
             bookRepository.Verify(repository => repository.GetArtworkRetryPage(1, 64), Times.Never);
             subject.Execute(new RetryOpenLibraryBookCoversCommand());
-            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Exactly(2));
+            portraitCache.Verify(cache => cache.TryRecover(41, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Exactly(2));
             authorRepository.Verify(repository => repository.GetArtworkRetryPage(0, 64), Times.Exactly(2));
         }
 
@@ -177,7 +199,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
 
             Mocker.GetMock<IOpenLibraryAuthorPortraitCache>()
-                .Verify(cache => cache.TryRecover(author.Id, url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
+                .Verify(cache => cache.TryRecover(author.Id, url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()),
                     shouldRecover ? Times.Once() : Times.Never());
         }
 
@@ -193,8 +215,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             editionService.Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>())).Returns(editions);
             var attempted = new List<int>();
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
-                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
-                .Callback<int, string, string, Func<bool>, TimeSpan>((id, _, _, _, timeout) =>
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Callback<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, _, timeout, _) =>
                 {
                     timeout.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(TimeSpan.FromSeconds(5));
                     attempted.Add(id);
@@ -220,7 +242,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(It.IsAny<IEnumerable<int>>()))
                 .Returns(books.Select(book => StoredEdition(book)).ToList());
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
-                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Setup(cache => cache.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
                 .Returns(OpenLibraryCoverRecovery.Recovered);
 
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
@@ -245,8 +267,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var attempted = new List<int>();
             var cache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
             cache.SetupSequence(service => service.IsCoolingDown).Returns(false).Returns(true).Returns(false);
-            cache.Setup(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
-                .Returns<int, string, string, Func<bool>, TimeSpan>((id, _, _, _, _) =>
+            cache.Setup(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan, Func<bool>>((id, _, _, _, _, _) =>
                 {
                     attempted.Add(id);
                     return attempted.Count == 1 ? firstResult : OpenLibraryCoverRecovery.Recovered;
@@ -277,8 +299,8 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 .Returns(new List<Edition> { StoredEdition(book, 99) });
             var called = 0;
             var cache = Mocker.GetMock<IOpenLibraryBookCoverCache>();
-            cache.Setup(service => service.TryRecover(book.Id, edition.Images[0].Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
-                .Returns<int, string, string, Func<bool>, TimeSpan>((_, _, _, stillSelected, _) =>
+            cache.Setup(service => service.TryRecover(book.Id, edition.Images[0].Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
+                .Returns<int, string, string, Func<bool>, TimeSpan, Func<bool>>((_, _, _, stillSelected, _, _) =>
                 {
                     if (++called == 1)
                     {
@@ -322,7 +344,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var requests = 0;
             Mocker.GetMock<IOpenLibraryBookCoverCache>()
-                .Setup(cache => cache.TryRecover(book.Id, edition.Images[0].Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()))
+                .Setup(cache => cache.TryRecover(book.Id, edition.Images[0].Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()))
                 .Returns(() =>
                 {
                     if (Interlocked.Increment(ref requests) == 1)
@@ -370,7 +392,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             cache.Verify(service => service.IsMissing(cached.Id, It.IsAny<string>()), Times.Once);
             cache.Verify(service => service.IsMissing(ambiguous.Id, It.IsAny<string>()), Times.Never);
-            cache.Verify(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()), Times.Never);
+            cache.Verify(service => service.TryRecover(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()), Times.Never);
         }
 
         [Test]
@@ -405,7 +427,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Subject.Execute(new RetryOpenLibraryBookCoversCommand());
 
             Mocker.GetMock<IOpenLibraryBookCoverCache>().Verify(
-                cache => cache.TryRecover(book.Id, cover.Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>()),
+                cache => cache.TryRecover(book.Id, cover.Url, It.IsAny<string>(), It.IsAny<Func<bool>>(), It.IsAny<TimeSpan>(), It.IsAny<Func<bool>>()),
                 Times.Once);
         }
 

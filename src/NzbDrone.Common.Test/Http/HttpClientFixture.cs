@@ -920,6 +920,17 @@ namespace NzbDrone.Common.Test.Http
         }
 
         [Test]
+        public async Task should_skip_cached_origin_cookies_for_an_anonymous_request()
+        {
+            GivenOldCookie();
+            var request = new HttpRequest(HttpBinUrl2("/get")) { IgnoreStoredOriginCredentials = true };
+
+            var response = await Subject.GetAsync<HttpBinResource>(request);
+
+            response.Resource.Headers.Should().NotContainKey("Cookie");
+        }
+
+        [Test]
         public async Task should_not_send_cookie_to_other_host()
         {
             // Two-host isolation: in single-host mode (local fixture or operator
@@ -1385,6 +1396,22 @@ namespace NzbDrone.Common.Test.Http
             var response = Subject.Execute(request);
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        [Test]
+        public void should_skip_cached_origin_challenge_credentials_for_an_anonymous_request()
+        {
+            var address = HttpBinUrl("/basic-auth/username/password");
+            var authenticated = new HttpRequest(address) { Credentials = new NetworkCredential("username", "password") };
+            Subject.Execute(authenticated).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var anonymous = new HttpRequest(address)
+            {
+                IgnoreStoredOriginCredentials = true,
+                SuppressHttpError = true
+            };
+
+            Subject.Execute(anonymous).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
 
         [Test]

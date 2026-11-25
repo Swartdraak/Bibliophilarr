@@ -42,6 +42,7 @@ namespace NzbDrone.Common.Http
         public bool LogHttpError { get; set; }
         public bool OmitSensitiveDiagnostics { get; set; }
         public Dictionary<string, string> Cookies { get; private set; }
+        public bool IgnoreStoredOriginCredentials { get; set; }
         public bool StoreRequestCookie { get; set; }
         public bool StoreResponseCookie { get; set; }
         public TimeSpan RequestTimeout { get; set; }

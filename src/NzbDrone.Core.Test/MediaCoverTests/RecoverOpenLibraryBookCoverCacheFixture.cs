@@ -46,6 +46,96 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
         }
 
+        [TestCase("https://archive.org/download/olcovers1234/olcovers1234-L.zip/12345678-L.jpg")]
+        [TestCase("https://archive.org/download/l_covers_0012/l_covers_0012_34.zip/0012345678-L.jpg")]
+        public void should_follow_one_verified_archive_image_location_and_publish_the_decoded_cover(string location)
+        {
+            const string source = "https://covers.openlibrary.org/b/id/12345678-L.jpg?default=false";
+            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix("openlibrary:work:OL41W", "OL-work-OL41W", source);
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(TempFolder);
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(service => service.FileExists(It.IsAny<string>())).Returns<string>(File.Exists);
+            disk.Setup(service => service.GetFileSize(It.IsAny<string>())).Returns<string>(path => new FileInfo(path).Length);
+            disk.Setup(service => service.OpenWriteStream(It.IsAny<string>())).Returns<string>(File.Create);
+            disk.Setup(service => service.CreateFolder(It.IsAny<string>())).Callback<string>(path => Directory.CreateDirectory(path));
+            disk.Setup(service => service.MoveFile(It.IsAny<string>(), It.IsAny<string>(), false)).Callback<string, string, bool>(File.Move);
+            disk.Setup(service => service.DeleteFile(It.IsAny<string>())).Callback<string>(File.Delete);
+
+            var http = Mocker.GetMock<IHttpClient>();
+            var requests = new List<HttpRequest>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+            {
+                requests.Add(request);
+                request.AllowAutoRedirect.Should().BeFalse();
+                request.Credentials.Should().BeNull();
+                request.Cookies.Should().BeEmpty();
+                if (request.Url.FullUri == source)
+                {
+                    return ArchiveRedirect(request, location);
+                }
+
+                request.Url.FullUri.Should().Be(location);
+                using var image = new Image<Rgba32>(12, 12);
+                image.Save(request.ResponseStream, new JpegEncoder());
+                return new HttpResponse(request, new HttpHeader(), Array.Empty<byte>(), HttpStatusCode.OK);
+            });
+
+            var subject = CreateTimedService();
+            var timeout = TimeSpan.FromSeconds(5);
+            ((IOpenLibraryBookCoverCache)subject).TryRecover(4, source, suffix, () => true, timeout)
+                .Should().Be(OpenLibraryCoverRecovery.Recovered);
+            requests.Should().HaveCount(2);
+            Assert.That(requests[1].RequestTimeout, Is.GreaterThan(TimeSpan.Zero).And.LessThanOrEqualTo(timeout));
+            using var recovered = Image.Load(subject.GetCoverPath(4, MediaCoverEntity.Book, MediaCoverTypes.Cover, suffix));
+            recovered.Width.Should().Be(12);
+        }
+
+        [TestCase(null)]
+        [TestCase("https://archive.org/download/olcovers1234/olcovers1234-L.zip/12345679-L.jpg")]
+        [TestCase("https://archive.org/download/olcovers1235/olcovers1235-L.zip/12345678-L.jpg")]
+        [TestCase("https://archive.org/download/another-collection/12345678-L.jpg")]
+        [TestCase("https://archive.org/download/olcovers1234/olcovers1234-L.zip/12345678-L.jpg?unexpected=1")]
+        public void should_not_dispatch_an_unrecognized_archive_image_location(string location)
+        {
+            const string source = "https://covers.openlibrary.org/b/id/12345678-L.jpg";
+            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix("openlibrary:work:OL41W", "OL-work-OL41W", source);
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(TempFolder);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request => ArchiveRedirect(request, location));
+
+            ((IOpenLibraryBookCoverCache)CreateTimedService()).TryRecover(4, source, suffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.Unavailable);
+
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
+        [Test]
+        public void should_stop_at_a_second_archive_response_redirect()
+        {
+            const string source = "https://covers.openlibrary.org/b/id/12345678-L.jpg";
+            const string approved = "https://archive.org/download/olcovers1234/olcovers1234-L.zip/12345678-L.jpg";
+            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix("openlibrary:work:OL41W", "OL-work-OL41W", source);
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(TempFolder);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request => ArchiveRedirect(request, approved));
+
+            ((IOpenLibraryBookCoverCache)CreateTimedService()).TryRecover(4, source, suffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.Unavailable);
+
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        private static HttpResponse ArchiveRedirect(HttpRequest request, string location)
+        {
+            var headers = new HttpHeader();
+            if (location != null)
+            {
+                headers.Add("Location", location);
+            }
+
+            return new HttpResponse(request, headers, Array.Empty<byte>(), HttpStatusCode.Redirect);
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void should_keep_only_the_current_nonempty_retry_file_after_an_author_refresh(bool populated)

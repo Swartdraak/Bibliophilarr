@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Recover Open Library artwork through a verified Internet Archive redirect.
+  Both requests count against the existing retry limit.
 - Keep existing series memberships when a provider returns optional series
   hints without confirming a complete membership list.
 - Hold a standalone audiobook when its embedded titles and filename identify a

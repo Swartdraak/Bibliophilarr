@@ -94,9 +94,21 @@ namespace NzbDrone.Core.MediaCover
             var triedAuthor = false;
             _unavailable.ClearExpired();
 
-            using var books = GetBookCoverAttempts().GetEnumerator();
-            using var authors = GetAuthorPortraitAttempts().GetEnumerator();
-            for (var requests = 0; requests < RequestLimit && _configService.EnableOpenLibraryProvider;)
+            var requests = 0;
+            bool ReserveRedirect()
+            {
+                if (requests >= RequestLimit || _timeProvider.GetElapsedTime(start) >= TickLimit || !_configService.EnableOpenLibraryProvider)
+                {
+                    return false;
+                }
+
+                requests++;
+                return true;
+            }
+
+            using var books = GetBookCoverAttempts(ReserveRedirect).GetEnumerator();
+            using var authors = GetAuthorPortraitAttempts(ReserveRedirect).GetEnumerator();
+            while (requests < RequestLimit && _configService.EnableOpenLibraryProvider)
             {
                 if (_timeProvider.GetElapsedTime(start) >= TickLimit)
                 {
@@ -144,7 +156,7 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetBookCoverAttempts()
+        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetBookCoverAttempts(Func<bool> reserveRedirect)
         {
             var page = _books.GetArtworkRetryPage(_afterId, PageSize);
             if (page.Count == 0)
@@ -171,7 +183,7 @@ namespace NzbDrone.Core.MediaCover
 
                     yield return timeout =>
                     {
-                        var result = _covers.TryRecover(book.Id, artwork.CoverUrl, artwork.FileSuffix, IsStillSelected, timeout);
+                        var result = _covers.TryRecover(book.Id, artwork.CoverUrl, artwork.FileSuffix, IsStillSelected, timeout, reserveRedirect);
                         RecordResult(artwork.FileSuffix, result, book.Id, ref _afterId);
                         if (result is not OpenLibraryCoverRecovery.Deferred and not OpenLibraryCoverRecovery.DeferredAfterRequest &&
                             page.Count < PageSize && book.Id == page[^1].Id)
@@ -193,7 +205,7 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetAuthorPortraitAttempts()
+        private IEnumerable<Func<TimeSpan, OpenLibraryCoverRecovery>> GetAuthorPortraitAttempts(Func<bool> reserveRedirect)
         {
             var page = _authors.GetArtworkRetryPage(_afterAuthorId, PageSize);
             foreach (var author in page)
@@ -212,7 +224,7 @@ namespace NzbDrone.Core.MediaCover
 
                     yield return timeout =>
                     {
-                        var result = _portraits.TryRecover(author.Id, artwork.Url, artwork.FileSuffix, IsStillSelected, timeout);
+                        var result = _portraits.TryRecover(author.Id, artwork.Url, artwork.FileSuffix, IsStillSelected, timeout, reserveRedirect);
                         RecordResult(artwork.FileSuffix, result, author.Id, ref _afterAuthorId);
                         return result;
                     };
