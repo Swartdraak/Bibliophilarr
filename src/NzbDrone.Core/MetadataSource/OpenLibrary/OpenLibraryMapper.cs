@@ -16,7 +16,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     /// </summary>
     public static class OpenLibraryMapper
     {
-        private const string OlCoverTemplate = "https://covers.openlibrary.org/b/id/{0}-L.jpg";
+        private const string OlCoverTemplate = "https://covers.openlibrary.org/b/id/{0}-L.jpg?default=false";
+        private const string OlAuthorPhotoTemplate = "https://covers.openlibrary.org/a/id/{0}-L.jpg";
         private const string OlWorkBaseUrl = "https://openlibrary.org";
         private static readonly Regex SeriesWithNumberRegex = new Regex(@"^(?<title>.+?)\s*#(?<position>[0-9]+(?:\.[0-9]+)?)$", RegexOptions.Compiled);
         private static readonly Regex InvalidSeriesIdCharsRegex = new Regex(@"[^a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -167,7 +168,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             {
                 metadata.Images.Add(new MediaCover.MediaCover
                 {
-                    Url = string.Format(OlCoverTemplate.Replace("/b/", "/a/"), authorPhotoId.Value),
+                    Url = string.Format(OlAuthorPhotoTemplate, authorPhotoId.Value),
                     CoverType = MediaCoverTypes.Poster
                 });
             }
