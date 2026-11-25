@@ -34,6 +34,7 @@ namespace Bibliophilarr.Api.V1.Bookshelf
 
             //Read from request
             var authorToUpdate = _authorService.GetAuthors(request.Authors.Select(s => s.Id));
+            var monitoringOptions = request.MonitoringOptions?.ToModel();
 
             foreach (var s in request.Authors)
             {
@@ -44,7 +45,7 @@ namespace Bibliophilarr.Api.V1.Bookshelf
                     author.Monitored = s.Monitored.Value;
                 }
 
-                if (request.MonitoringOptions != null && request.MonitoringOptions.Monitor == MonitorTypes.None)
+                if (monitoringOptions?.Monitor == MonitorTypes.None)
                 {
                     author.Monitored = false;
                 }
@@ -54,7 +55,7 @@ namespace Bibliophilarr.Api.V1.Bookshelf
                     author.MonitorNewItems = request.MonitorNewItems.Value;
                 }
 
-                _bookMonitoredService.SetBookMonitoredStatus(author, request.MonitoringOptions);
+                _bookMonitoredService.SetBookMonitoredStatus(author, monitoringOptions);
             }
 
             return Accepted(request);
