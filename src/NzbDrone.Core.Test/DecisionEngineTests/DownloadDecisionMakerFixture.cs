@@ -106,8 +106,11 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             messages.Logs.Should().Contain("Author/Book null for Ada Vale - City Lights (2022) [EPUB] , reparsing with search criteria");
         }
 
-        [Test]
-        public void should_keep_exception_data_compact_and_preserve_the_original_rejection()
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void should_keep_exception_data_compact_and_preserve_the_original_rejection(bool hasReport, bool hasParsed)
         {
             using var logging = CaptureDecisionMessages(out var messages);
             const string title = "Ada Vale - City Lights (2022) [EPUB]\r\n\t";
@@ -118,6 +121,17 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             report.InfoUrl = "https://indexer.invalid/details/12";
             report.CommentUrl = "https://indexer.invalid/comments/12";
             var failure = new InvalidOperationException("Edition lookup paused.");
+            failure.Data["stage"] = "fixture specification";
+            if (hasReport)
+            {
+                failure.Data["report"] = "upstream report context";
+            }
+
+            if (hasParsed)
+            {
+                failure.Data["parsed"] = "upstream parser context";
+            }
+
             _fail1.Setup(spec => spec.IsSatisfiedBy(It.IsAny<RemoteBook>(), null)).Throws(failure);
             GivenSpecifications(_fail1);
 
@@ -127,6 +141,8 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             decision.Rejected.Should().BeTrue();
             decision.Rejections.Should().ContainSingle().Which.Reason.Should().Be($"{_fail1.Object.GetType().Name}: {failure.Message}");
             messages.Logs.Should().Contain("Couldn't evaluate decision on Ada Vale - City Lights (2022) [EPUB] ");
+            messages.Logs.Should().NotContain("Couldn't process release.");
+            failure.Data["stage"].Should().Be("fixture specification");
             var releaseJson = (string)failure.Data["report"];
             releaseJson.Should().NotContain("\r").And.NotContain("\n");
             releaseJson.Should().NotContain("indexer.invalid");

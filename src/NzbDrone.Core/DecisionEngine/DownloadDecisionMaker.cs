@@ -322,7 +322,7 @@ namespace NzbDrone.Core.DecisionEngine
             {
                 var release = remoteBook.Release;
                 var parsed = remoteBook.ParsedBookInfo;
-                e.Data.Add("report", new
+                e.Data["report"] = new
                 {
                     release.Title,
                     release.Indexer,
@@ -330,15 +330,15 @@ namespace NzbDrone.Core.DecisionEngine
                     release.Size,
                     release.PublishDate,
                     release.DownloadProtocol
-                }.ToJson(Formatting.None));
-                e.Data.Add("parsed", new
+                }.ToJson(Formatting.None);
+                e.Data["parsed"] = new
                 {
                     BookTitle = parsed?.BookTitle,
                     AuthorName = parsed?.AuthorName,
                     Quality = parsed?.Quality,
                     ReleaseDate = parsed?.ReleaseDate,
                     ReleaseGroup = parsed?.ReleaseGroup
-                }.ToJson(Formatting.None));
+                }.ToJson(Formatting.None);
                 _logger.Error(e, "Couldn't evaluate decision on {0}", LogSanitizer.Sanitize(release.Title));
                 return new Rejection($"{spec.GetType().Name}: {e.Message}");
             }
