@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using NLog;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
@@ -81,7 +82,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         private OlSearchResponse Search(string query, int limit, int offset, int retryBudget, bool supplemental)
         {
-            _logger.Debug("OpenLibrary search: {0}", query);
+            _logger.Debug("OpenLibrary search: {0}", LogSanitizer.Sanitize(query));
 
             var requestBuilder = new HttpRequestBuilder(BaseUrl + "/search.json")
                 .AddQueryParam("q", query)

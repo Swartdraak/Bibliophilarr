@@ -106,6 +106,31 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_normalize_query_formatting_only_in_the_debug_message(bool supplemental)
+        {
+            const string query = "Fixture\tBook";
+            var config = Mocker.GetMock<IConfigService>();
+            config.SetupGet(settings => settings.EnableOpenLibraryProvider).Returns(true);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Returns<HttpRequest>(request =>
+                new HttpResponse(request, new HttpHeader(), """{"docs":[]}"""));
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            var client = new OpenLibraryClient(http.Object, config.Object, logFactory.GetLogger(nameof(OpenLibraryClient)));
+
+            var result = supplemental ? client.SearchOnePageWithoutRetry(query, 1) : client.Search(query, 1);
+
+            result.Docs.Should().BeEmpty();
+            var originalParameter = $"q={Uri.EscapeDataString(query)}";
+            http.Verify(transport => transport.Get(It.Is<HttpRequest>(request =>
+                request.Url.Query.StartsWith(originalParameter + "&", StringComparison.Ordinal))), Times.Once());
+            messages.Logs.Should().ContainSingle(entry => entry == "OpenLibrary search: Fixture Book");
+        }
+
         [Test]
         public void supplemental_author_search_honors_retry_after_without_retrying_or_following_redirects()
         {

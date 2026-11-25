@@ -595,6 +595,8 @@ process.
 - Log operation and status for Hardcover book and series searches and Open
   Library ISBN lookups without recording raw queries or provider errors.
 - Sanitize book identifiers and titles in Add Book and import-list logs.
+- Normalize Open Library search text in debug logs while preserving the query
+  sent to the provider.
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
 - Patch glob and minimatch in frontend tooling. Restore the authentic
