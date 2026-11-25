@@ -80,11 +80,13 @@ namespace NzbDrone.Core.Books
 
         public AuthorFormatProfile Update(AuthorFormatProfile profile)
         {
+            var monitoringChanged = _configService.EnableDualFormatTracking &&
+                                    _repository.Get(profile.Id).Monitored != profile.Monitored;
+
             _logger.Info("Updating {0} format profile for author '{1}' (id: {2})", profile.FormatType, ResolveAuthorName(profile.AuthorId), profile.AuthorId);
             var result = _repository.Update(profile);
 
-            // Keep Author.Monitored in sync: true if ANY format profile is monitored
-            if (_configService.EnableDualFormatTracking)
+            if (monitoringChanged)
             {
                 SyncAuthorMonitored(profile.AuthorId);
             }
