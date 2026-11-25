@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Equ;
 using NzbDrone.Common.Extensions;
@@ -37,7 +38,11 @@ namespace NzbDrone.Core.MediaCover
 
                 if (Extension.IsNullOrWhiteSpace())
                 {
-                    Extension = Path.GetExtension(value);
+                    var path = Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+                        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                        ? uri.AbsolutePath
+                        : value;
+                    Extension = Path.GetExtension(path);
                 }
             }
         }
