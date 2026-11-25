@@ -38,6 +38,7 @@ class Tooltip extends Component {
     this._scheduleUpdate = null;
     this._closeTimeout = null;
     this._tooltipId = getUniqueElementId();
+    this._triggerPointerType = null;
     this._maxWidth = maxWidth || getMaxWidth();
 
     this.state = {
@@ -99,12 +100,31 @@ class Tooltip extends Component {
     }
   };
 
+  onTriggerPointerEnter = (event) => {
+    if (event.pointerType !== 'touch') {
+      this.onMouseEnter();
+    }
+  };
+
+  onTriggerPointerLeave = (event) => {
+    if (event.pointerType !== 'touch') {
+      this.onMouseLeave();
+    }
+  };
+
+  onTriggerPointerDown = (event) => {
+    this._triggerPointerType = event.pointerType;
+  };
+
   onTriggerClick = (event) => {
     if (this._closeTimeout) {
       this._closeTimeout = clearTimeout(this._closeTimeout);
     }
 
-    if (event.detail === 0 || isMobileUtil()) {
+    const isTouch = this._triggerPointerType === 'touch';
+    this._triggerPointerType = null;
+
+    if (event.detail === 0 || isTouch) {
       this.setState(({ isOpen }) => ({ isOpen: !isOpen }));
     } else {
       this.setState({ isOpen: true });
@@ -160,8 +180,10 @@ class Tooltip extends Component {
               ref={ref}
               className={className}
               onClick={triggerLabel ? undefined : this.onClick}
-              onMouseEnter={this.onMouseEnter}
-              onMouseLeave={this.onMouseLeave}
+              onMouseEnter={triggerLabel ? undefined : this.onMouseEnter}
+              onMouseLeave={triggerLabel ? undefined : this.onMouseLeave}
+              onPointerEnter={triggerLabel ? this.onTriggerPointerEnter : undefined}
+              onPointerLeave={triggerLabel ? this.onTriggerPointerLeave : undefined}
             >
               {triggerLabel ? (
                 <button
@@ -171,6 +193,7 @@ class Tooltip extends Component {
                   aria-expanded={isOpen}
                   aria-describedby={isOpen ? this._tooltipId : undefined}
                   onClick={this.onTriggerClick}
+                  onPointerDown={this.onTriggerPointerDown}
                   onBlur={this.onTriggerBlur}
                   onKeyDown={this.onTriggerKeyDown}
                 >

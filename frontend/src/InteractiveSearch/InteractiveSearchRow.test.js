@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import Portal from 'Components/Portal';
+import Tooltip from 'Components/Tooltip/Tooltip';
 import InteractiveSearchRow from './InteractiveSearchRow';
 
 jest.mock('Utilities/String/translate', () => (key, tokens) => ({
@@ -32,6 +33,12 @@ const row = {
   searchPayload: {}
 };
 
+function firePointerEvent(type, target, pointerType) {
+  const event = createEvent[type](target);
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  fireEvent(target, event);
+}
+
 test('opens exact release details from named native buttons and keeps pointer hover', () => {
   const portal = document.createElement('div');
   portal.id = 'portal-root';
@@ -40,11 +47,14 @@ test('opens exact release details from named native buttons and keeps pointer ho
   Portal.defaultProps.target = portal;
   const grab = jest.fn();
   const { unmount } = render(
-    <table>
-      <tbody>
-        <InteractiveSearchRow {...row} onGrabPress={grab} />
-      </tbody>
-    </table>
+    <>
+      <table>
+        <tbody>
+          <InteractiveSearchRow {...row} onGrabPress={grab} />
+        </tbody>
+      </table>
+      <Tooltip anchor="Ordinary hover" tooltip="Ordinary tooltip" />
+    </>
   );
 
   try {
@@ -64,10 +74,26 @@ test('opens exact release details from named native buttons and keeps pointer ho
       fireEvent.keyDown(button, { key: 'Escape' });
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
       expect(button).toHaveFocus();
+
+      firePointerEvent('pointerOver', button, 'touch');
+      firePointerEvent('pointerDown', button, 'touch');
+      fireEvent.mouseEnter(button);
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      fireEvent.click(button, { detail: 1 });
+      expect(screen.getByRole('tooltip')).toHaveTextContent(details);
+
+      firePointerEvent('pointerDown', button, 'touch');
+      fireEvent.click(button, { detail: 1 });
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     }
 
-    fireEvent.mouseEnter(rejection);
+    firePointerEvent('pointerOver', rejection, 'mouse');
     expect(screen.getByRole('tooltip')).toHaveTextContent(row.rejections[0]);
+    fireEvent.keyDown(rejection, { key: 'Escape' });
+    const ordinary = screen.getByText('Ordinary hover');
+    expect(ordinary.tagName).toBe('SPAN');
+    fireEvent.mouseEnter(ordinary);
+    expect(screen.getByText('Ordinary tooltip')).toBeInTheDocument();
     expect(grab).not.toHaveBeenCalled();
   } finally {
     unmount();
