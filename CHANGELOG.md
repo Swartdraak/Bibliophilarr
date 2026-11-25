@@ -17,6 +17,8 @@ process.
 ### Fixed
 
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
+- Remove tracked files when explicitly deleting their book and report failures
+  before removing the book from the catalogue.
 - Keep the order set by dragging Delay Profiles and apply the new priority
   to matching releases immediately.
 - Remove an author's format profiles when deleting that author.
@@ -94,6 +96,8 @@ process.
 - Honor Google Books fallback cooldowns before decoding provider responses.
   Keep search queries, credentials and response bodies out of failure warnings.
 - Share the Google Books rate-limit deadline across search and volume requests.
+- Share the Google Books server-error hold across request paths after a
+  fallback search returns HTTP 5xx. Honor a longer Retry-After on a 503.
   Record upstream server errors as failures and continue with available providers.
 - Include automatic import fallback searches in provider operation telemetry.
 - Confirm an unexpectedly empty Open Library bibliography page once before

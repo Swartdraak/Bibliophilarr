@@ -35,11 +35,11 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [HttpDelete]
-        public void DeleteBook([FromBody] BookEditorResource resource)
+        public void DeleteBook([FromBody] BookEditorResource resource, [FromServices] IRemoveBookFromLibrary bookRemoval)
         {
             foreach (var bookId in resource.BookIds)
             {
-                _bookService.DeleteBook(bookId, resource.DeleteFiles ?? false, resource.AddImportListExclusion ?? false);
+                bookRemoval.Remove(bookId, resource.DeleteFiles ?? false, resource.AddImportListExclusion ?? false);
             }
         }
     }
