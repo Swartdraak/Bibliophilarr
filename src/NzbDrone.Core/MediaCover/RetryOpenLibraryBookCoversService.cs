@@ -108,8 +108,7 @@ namespace NzbDrone.Core.MediaCover
 
                     if (result == OpenLibraryCoverRecovery.DeferredAfterRequest)
                     {
-                        // The host must cool down. Visit the next cover when requests resume
-                        // and reconsider this one when the scan wraps.
+                        // Resume at the next cover and reconsider this one when the scan wraps.
                         _afterId = book.Id;
                         return;
                     }
