@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.TPL;
@@ -120,13 +122,67 @@ namespace NzbDrone.Common.Test.Http
                 dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Exactly(3));
         }
 
-        private HttpClient CreateClient(ICacheManager cache)
+        [Test]
+        public void should_expire_a_saved_deadline_without_deleting_it_on_read()
+        {
+            var folders = Mock.Of<IAppFolderInfo>(x => x.AppDataFolder == TempFolder);
+            var expired = DateTime.UtcNow.AddMinutes(-1).Ticks.ToString(CultureInfo.InvariantCulture);
+            var path = Path.Combine(TempFolder, "hardcover-retry-until");
+            File.WriteAllText(path, expired);
+
+            HardcoverRateLimitGate.Get(new CacheManager(), folders, TestLogger).CooldownUntilUtc.Should().BeNull();
+            File.ReadAllText(path).Should().Be(expired);
+        }
+
+        [Test]
+        public void should_keep_other_endpoints_available_when_saved_hardcover_state_cannot_be_read()
+        {
+            var folders = Mock.Of<IAppFolderInfo>(x => x.AppDataFolder == TempFolder);
+            File.WriteAllText(Path.Combine(TempFolder, "hardcover-retry-until"), new string('x', 80));
+            var cache = new CacheManager();
+            var client = CreateClient(cache, folders);
+            GiveThrottledResponse("30", "{}");
+
+            var held = Assert.ThrowsAsync<TooManyRequestsException>(() => client.ExecuteAsync(PrepareRequest(Endpoint, "search")));
+            held.IsLocallySuppressed.Should().BeTrue();
+            held.HardcoverCooldownUntilUtc.Should().Be(HardcoverRateLimitGate.Get(cache).CooldownUntilUtc);
+            client.Execute(PrepareRequest("https://example.invalid/v1/graphql", "alternate search")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<IHttpDispatcher>().Verify(
+                dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
+        }
+
+        [Test]
+        public void should_preserve_the_local_hold_when_the_atomic_replace_fails()
+        {
+            var folders = Mock.Of<IAppFolderInfo>(x => x.AppDataFolder == TempFolder);
+            var cache = new CacheManager();
+            var client = CreateClient(cache, folders);
+            GiveThrottledResponse("3600", "{}");
+            HardcoverRateLimitGate.Get(cache).CooldownUntilUtc.Should().BeNull();
+            Directory.CreateDirectory(Path.Combine(TempFolder, "hardcover-retry-until"));
+
+            var first = Assert.ThrowsAsync<TooManyRequestsException>(() => client.ExecuteAsync(PrepareRequest(Endpoint, "search")));
+            var next = Assert.ThrowsAsync<TooManyRequestsException>(() => client.ExecuteAsync(PrepareRequest(Endpoint, "author lookup")));
+            first.IsLocallySuppressed.Should().BeFalse();
+            next.IsLocallySuppressed.Should().BeTrue();
+            next.HardcoverCooldownUntilUtc.Should().Be(first.HardcoverCooldownUntilUtc);
+            Directory.EnumerateFiles(TempFolder, "hardcover-retry-until.*.tmp").Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
+            Mocker.GetMock<IHttpDispatcher>().Verify(
+                dispatcher => dispatcher.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
+        }
+
+        private HttpClient CreateClient(ICacheManager cache, IAppFolderInfo appFolderInfo = null)
         {
             return new HttpClient(Array.Empty<IHttpRequestInterceptor>(),
                 cache,
                 Mocker.GetMock<IRateLimitService>().Object,
                 Mocker.GetMock<IHttpDispatcher>().Object,
-                TestLogger);
+                TestLogger,
+                appFolderInfo);
         }
 
         private void GiveThrottledResponse(string retryAfter, string body)
