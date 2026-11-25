@@ -85,6 +85,7 @@
   "AuthorEditor": "Author Editor",
   "AuthorFolderFormat": "Author Folder Format",
   "AuthorIndex": "Author Index",
+  "AuthorMetadataRefreshPending": "No author metadata refresh has been recorded yet. The Books tab may be incomplete.",
   "AuthorNameHelpText": "The name of the author/book to exclude (can be anything meaningful)",
   "AuthorProgressBarText": "{availableBookCount} / {bookCount} (Total: {totalBookCount}, Files: {bookFileCount})",
   "Authors": "Authors",
