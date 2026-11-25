@@ -75,14 +75,15 @@ recovery issue is closed.
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
-- The most recent fresh profile saved all four provider configurations and
-  recorded live requests to each provider during the ebook scans. Those scans
-  inventoried 75 ebooks, linked 53 to ebook editions, and held 22 for review.
-  Six holds are byte-identical copies of existing typed files. The saved
-  audiobook root was recovered after the interrupted scan. A replacement scan
-  of all 458 audiobook paths is running in the same profile. Dual-format
-  ownership, complete metadata and restart still require final validation.
-  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7150351698)
+- The most recent fresh profile recorded live requests to all four configured
+  providers. The primary scans accounted for all 533 paths across both roots.
+  Of the 75 ebooks, 53 linked to ebook editions and 22 were held. Of the 458
+  audiobook files, 360 linked to audiobook editions and 98 were held. Six
+  ebook holds are byte-identical copies of already linked files. Low matching
+  confidence, unavailable author bibliographies, and duplicates in the same
+  scan were the most frequent audiobook hold reasons. Final catalogue evidence
+  still needs the settled refresh, dual-format ownership, artwork, and restart.
+  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7150948133)
 - The closed replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
