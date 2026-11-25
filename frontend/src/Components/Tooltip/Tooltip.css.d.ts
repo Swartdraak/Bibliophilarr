@@ -12,6 +12,7 @@ interface CssExports {
   'right': string;
   'tooltip': string;
   'tooltipContainer': string;
+  'trigger': string;
   'top': string;
   'verticalContainer': string;
 }
