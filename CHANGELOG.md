@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Honor Hardcover's recorded rate-limit deadline after restarting the same
+  Bibliophilarr profile while other metadata providers remain available.
 - Reuse a verified work's existing audiobook edition during a full library scan
   when it ties with an untyped edition and the file has no conflicting link.
 - Show the exact stored work's synopsis in Add New when the provider result

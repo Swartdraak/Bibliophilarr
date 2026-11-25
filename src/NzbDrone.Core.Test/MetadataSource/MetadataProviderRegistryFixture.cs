@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -8,6 +10,7 @@ using Moq;
 using NLog;
 using NUnit.Framework;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.Http.Dispatchers;
 using NzbDrone.Common.TPL;
@@ -86,6 +89,73 @@ namespace NzbDrone.Core.Test.MetadataSource
             registry.UpdateProviderHealth("Hardcover", new ProviderHealthStatus { CooldownUntilUtc = independent });
             registry.GetProvidersHealthStatus()["Hardcover"].CooldownUntilUtc.Should().Be(independent);
             HardcoverRateLimitGate.Get(cache).CooldownUntilUtc.Should().Be(active.CooldownUntilUtc);
+        }
+
+        [Test]
+        public void should_restore_the_hardcover_hold_for_health_and_dispatch_in_the_same_profile()
+        {
+            var profile = Directory.CreateTempSubdirectory();
+            var freshProfile = Directory.CreateTempSubdirectory();
+            var logger = LogManager.GetCurrentClassLogger();
+            var dispatcher = new Mock<IHttpDispatcher>(MockBehavior.Strict);
+            dispatcher.Setup(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()))
+                .ReturnsAsync((HttpRequest request, CookieContainer _) => new HttpResponse(
+                    request,
+                    new HttpHeader { ["Retry-After"] = "3600" },
+                    "",
+                    HttpStatusCode.TooManyRequests));
+            var pace = Mock.Of<IRateLimitService>();
+            var folders = Mock.Of<IAppFolderInfo>(x => x.AppDataFolder == profile.FullName);
+            var freshFolders = Mock.Of<IAppFolderInfo>(x => x.AppDataFolder == freshProfile.FullName);
+
+            HttpClient CreateHttp(ICacheManager cache, IAppFolderInfo folderInfo) =>
+                new HttpClient(Array.Empty<IHttpRequestInterceptor>(), cache, pace, dispatcher.Object, logger, folderInfo);
+
+            HttpRequest Request() => new HttpRequest("https://api.hardcover.app/v1/graphql")
+            {
+                Method = System.Net.Http.HttpMethod.Post,
+                SuppressHttpError = true
+            };
+
+            try
+            {
+                var firstCache = new CacheManager();
+                HardcoverRateLimitGate.Get(firstCache).CooldownUntilUtc.Should().BeNull();
+                var client = CreateHttp(firstCache, folders);
+                HardcoverRateLimitGate.Get(firstCache).CooldownUntilUtc.Should().BeNull();
+                Directory.EnumerateFileSystemEntries(profile.FullName).Should().BeEmpty();
+                var first = client.Execute(Request());
+                first.IsLocallySuppressed.Should().BeFalse();
+                first.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+                var deadline = HardcoverRateLimitGate.Get(firstCache).CooldownUntilUtc;
+                deadline.Should().NotBeNull();
+                var file = Directory.GetFiles(profile.FullName).Should().ContainSingle().Which;
+                File.ReadAllText(file).Should().Be(deadline.Value.Ticks.ToString(CultureInfo.InvariantCulture));
+
+                var reopenedCache = new CacheManager();
+                var hardcover = new TestBookSearchProvider("Hardcover", 10, true);
+                var alternate = new TestBookSearchProvider("Other", 20, true);
+                var registry = new MetadataProviderRegistry(new[] { hardcover, alternate }, null, logger, reopenedCache, folders);
+                var health = registry.GetProvidersHealthStatus();
+                health["Hardcover"].CooldownUntilUtc.Should().Be(deadline);
+                health["Hardcover"].RetryAfterRemainingSeconds.Should().BeInRange(3590, 3600);
+                health["Other"].CooldownUntilUtc.Should().BeNull();
+
+                var held = CreateHttp(reopenedCache, folders).Execute(Request());
+                held.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+                held.IsLocallySuppressed.Should().BeTrue();
+                HardcoverRateLimitGate.Get(reopenedCache).CooldownUntilUtc.Should().Be(deadline);
+                dispatcher.Verify(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Once());
+
+                var fresh = CreateHttp(new CacheManager(), freshFolders).Execute(Request());
+                fresh.IsLocallySuppressed.Should().BeFalse();
+                dispatcher.Verify(x => x.GetResponseAsync(It.IsAny<HttpRequest>(), It.IsAny<CookieContainer>()), Times.Exactly(2));
+            }
+            finally
+            {
+                profile.Delete(recursive: true);
+                freshProfile.Delete(recursive: true);
+            }
         }
 
         [Test]

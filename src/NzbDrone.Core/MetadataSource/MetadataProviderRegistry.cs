@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
@@ -41,10 +42,14 @@ namespace NzbDrone.Core.MetadataSource
         {
         }
 
-        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers, IConfigService configService, Logger logger, ICacheManager cacheManager)
+        public MetadataProviderRegistry(IEnumerable<IMetadataProvider> providers,
+                                        IConfigService configService,
+                                        Logger logger,
+                                        ICacheManager cacheManager,
+                                        IAppFolderInfo appFolderInfo = null)
         {
             _logger = logger ?? LogManager.GetCurrentClassLogger();
-            _hardcoverRateLimitGate = cacheManager == null ? null : HardcoverRateLimitGate.Get(cacheManager);
+            _hardcoverRateLimitGate = cacheManager == null ? null : HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, _logger);
             _providers = new Dictionary<string, IMetadataProvider>(StringComparer.OrdinalIgnoreCase);
             _enabledOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _priorityOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

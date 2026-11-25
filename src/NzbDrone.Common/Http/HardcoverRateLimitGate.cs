@@ -1,16 +1,22 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 
 namespace NzbDrone.Common.Http
 {
     public sealed class HardcoverRateLimitGate
     {
         private const string RetryAfterHeader = "Retry-After";
+        private const string DeadlineFileName = "hardcover-retry-until";
+        private const int MaxDeadlineBytes = 19;
         private const int MaxBodyBytes = 4096;
         private static readonly TimeSpan DefaultCooldown = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan MaximumCooldown = TimeSpan.FromSeconds(int.MaxValue);
@@ -19,7 +25,12 @@ namespace NzbDrone.Common.Http
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         private readonly SemaphoreSlim _dispatch = new SemaphoreSlim(1, 1);
+        private readonly object _deadlineSync = new object();
         private long _retryUntilUtcTicks;
+        private string _deadlinePath;
+        private bool _deadlineLoaded;
+        private DateTime _storageReadRetryAtUtc;
+        private Logger _logger;
 
         private HardcoverRateLimitGate()
         {
@@ -27,10 +38,25 @@ namespace NzbDrone.Common.Http
 
         public DateTime? CooldownUntilUtc => GetActiveDeadline(DateTime.UtcNow);
 
-        public static HardcoverRateLimitGate Get(ICacheManager cacheManager)
+        public static HardcoverRateLimitGate Get(ICacheManager cacheManager, IAppFolderInfo appFolderInfo = null, Logger logger = null)
         {
-            return cacheManager.GetCache<HardcoverRateLimitGate>(typeof(HardcoverRateLimitGate))
+            var gate = cacheManager.GetCache<HardcoverRateLimitGate>(typeof(HardcoverRateLimitGate))
                 .Get("graphql", () => new HardcoverRateLimitGate());
+            if (!string.IsNullOrWhiteSpace(appFolderInfo?.AppDataFolder))
+            {
+                gate.ConfigureStorage(appFolderInfo.AppDataFolder, logger);
+            }
+
+            return gate;
+        }
+
+        private void ConfigureStorage(string appDataFolder, Logger logger)
+        {
+            lock (_deadlineSync)
+            {
+                _deadlinePath ??= Path.Combine(appDataFolder, DeadlineFileName);
+                _logger ??= logger ?? LogManager.GetCurrentClassLogger();
+            }
         }
 
         internal static bool AppliesTo(HttpRequest request)
@@ -73,13 +99,12 @@ namespace NzbDrone.Common.Http
                 }
 
                 var response = await send();
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                if (response.StatusCode == HttpStatusCode.TooManyRequests && !response.IsLocallySuppressed)
                 {
                     var now = DateTimeOffset.UtcNow;
                     var retryAfter = ReadRetryAfter(response, now);
                     var deadline = now.Add(retryAfter).UtcDateTime;
-                    Interlocked.Exchange(ref _retryUntilUtcTicks, deadline.Ticks);
-                    response.HardcoverCooldownUntilUtc = deadline;
+                    response.HardcoverCooldownUntilUtc = RecordDeadline(deadline);
                 }
 
                 return response;
@@ -92,8 +117,98 @@ namespace NzbDrone.Common.Http
 
         private DateTime? GetActiveDeadline(DateTime now)
         {
-            var ticks = Interlocked.Read(ref _retryUntilUtcTicks);
-            return ticks > now.Ticks ? new DateTime(ticks, DateTimeKind.Utc) : null;
+            lock (_deadlineSync)
+            {
+                LoadDeadline(now);
+                var ticks = Math.Max(_retryUntilUtcTicks, _storageReadRetryAtUtc.Ticks);
+                return ticks > now.Ticks ? new DateTime(ticks, DateTimeKind.Utc) : null;
+            }
+        }
+
+        private void LoadDeadline(DateTime now)
+        {
+            if (_deadlinePath == null || _deadlineLoaded || _storageReadRetryAtUtc > now)
+            {
+                return;
+            }
+
+            try
+            {
+                using var stream = File.OpenRead(_deadlinePath);
+                Span<byte> buffer = stackalloc byte[MaxDeadlineBytes + 1];
+                var length = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+                if (length > MaxDeadlineBytes ||
+                    !long.TryParse(Encoding.ASCII.GetString(buffer[..length]), NumberStyles.None, CultureInfo.InvariantCulture, out var ticks) ||
+                    ticks <= 0 || ticks > DateTime.MaxValue.Ticks)
+                {
+                    throw new InvalidDataException();
+                }
+
+                _retryUntilUtcTicks = Math.Max(_retryUntilUtcTicks, ticks);
+                _deadlineLoaded = true;
+                _storageReadRetryAtUtc = default;
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                _deadlineLoaded = true;
+                _storageReadRetryAtUtc = default;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                _storageReadRetryAtUtc = now.Add(DefaultCooldown);
+                _logger.Warn("Could not read the Hardcover cooldown state. Dispatch is held until the saved state can be read.");
+            }
+        }
+
+        private DateTime RecordDeadline(DateTime deadline)
+        {
+            lock (_deadlineSync)
+            {
+                LoadDeadline(DateTime.UtcNow);
+                _retryUntilUtcTicks = Math.Max(_retryUntilUtcTicks, deadline.Ticks);
+                if (_deadlinePath != null)
+                {
+                    SaveDeadline(_retryUntilUtcTicks);
+                }
+
+                return new DateTime(_retryUntilUtcTicks, DateTimeKind.Utc);
+            }
+        }
+
+        private void SaveDeadline(long ticks)
+        {
+            var temporaryPath = _deadlinePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            var created = false;
+            try
+            {
+                using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    created = true;
+                    stream.Write(Encoding.ASCII.GetBytes(ticks.ToString(CultureInfo.InvariantCulture)));
+                    stream.Flush(flushToDisk: true);
+                }
+
+                File.Move(temporaryPath, _deadlinePath, overwrite: true);
+                created = false;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.Warn("Could not save the Hardcover cooldown state. The in-memory deadline remains active.");
+            }
+            finally
+            {
+                if (created)
+                {
+                    try
+                    {
+                        File.Delete(temporaryPath);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        _logger.Warn("Could not remove a temporary Hardcover cooldown state file.");
+                    }
+                }
+            }
         }
 
         private static TimeSpan ReadRetryAfter(HttpResponse response, DateTimeOffset now)
