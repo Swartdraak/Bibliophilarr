@@ -65,14 +65,16 @@ def provider_fixture(tls, *, google_key=None):
 
         def do_GET(self):
             parsed = urlsplit(self.path)
+            query = parse_qs(parsed.query)
             payload = routes.get(parsed.path)
-            if parsed.path == "/search.json" and parse_qs(parsed.query).get("q") == [f"author_key:{AUTHOR_KEY}"]:
+            if parsed.path == "/search.json" and query.get("q") == [f"author_key:{AUTHOR_KEY}"]:
                 payload = {"numFound": 0, "numFoundExact": True, "start": 0, "docs": []}
             if google_key:
                 payload = None
-                if parse_qs(parsed.query).get("key") == [google_key]:
+                if query.get("key") == [google_key]:
                     if parsed.path == "/books/v1/volumes":
-                        payload = {"totalItems": 1, "items": [VOLUME_RESOURCE]}
+                        items = [VOLUME_RESOURCE] if query.get("startIndex", ["0"]) == ["0"] else []
+                        payload = {"totalItems": 1, "items": items}
                     elif parsed.path == f"/books/v1/volumes/{VOLUME}":
                         payload = VOLUME_RESOURCE
             if (payload is None or self.headers.get("Host") != hostname or
