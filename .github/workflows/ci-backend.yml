@@ -141,6 +141,7 @@ jobs:
           "$RUNNER_TEMP/browser-smoke-venv/bin/python" -m playwright install --with-deps --only-shell chromium
 
       - name: Verify live browser evidence guards without provider calls
+        working-directory: .
         run: |
           "$RUNNER_TEMP/browser-smoke-venv/bin/python" -B -m unittest discover -s tests/browser -p test_live_evidence.py
 
