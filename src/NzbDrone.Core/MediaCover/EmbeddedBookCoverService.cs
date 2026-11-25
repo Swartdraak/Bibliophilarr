@@ -18,8 +18,10 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
@@ -164,21 +166,41 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        internal static FormatType? SupportedSourceFormat(string path, Edition edition)
+        internal enum SourceKind
+        {
+            Epub,
+            Azw3,
+            M4b
+        }
+
+        internal static SourceKind? SupportedSourceKind(string path, Edition edition)
         {
             var format = ImportFormat.ForEdition(edition, requireExplicitFormat: true);
             var extension = Path.GetExtension(path);
-            if (format == FormatType.Ebook && edition.IsEbook && string.Equals(extension, ".epub", StringComparison.OrdinalIgnoreCase))
-            {
-                return FormatType.Ebook;
-            }
-
             if (format == FormatType.Audiobook && !edition.IsEbook && string.Equals(extension, ".m4b", StringComparison.OrdinalIgnoreCase))
             {
-                return FormatType.Audiobook;
+                return SourceKind.M4b;
             }
 
-            return null;
+            if (format != FormatType.Ebook || !edition.IsEbook)
+            {
+                return null;
+            }
+
+            if (string.Equals(extension, ".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                return SourceKind.Epub;
+            }
+
+            if (!string.Equals(extension, ".azw3", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            // A generic, explicitly typed ebook can be backed by an AZW3 file.
+            // A concrete conflicting subformat cannot establish an AZW3 cover source.
+            var editionQuality = MediaFileExtensions.GetQualityForExtension("." + edition.Format.Trim().TrimStart('.'));
+            return editionQuality == Quality.Unknown || editionQuality == Quality.AZW3 ? SourceKind.Azw3 : null;
         }
 
         private bool RecoverSelected(int bookId, RecoverImportedBookCoverCommand command)
@@ -198,7 +220,7 @@ namespace NzbDrone.Core.MediaCover
                 }
 
                 // A scan hands off only the exact file version it persisted.
-                // A manual work refresh may try both independently eligible editions.
+                // A manual work refresh may try the independently eligible containers.
                 if (command != null)
                 {
                     return RecoverSource(bookId, importedSource, sources);
@@ -229,7 +251,13 @@ namespace NzbDrone.Core.MediaCover
                 }
 
                 using var input = new FileStream(handle, FileAccess.Read);
-                var cover = source.IsEbook ? EpubCoverReader.Read(input) : M4bCoverReader.Read(input);
+                var cover = source.Kind switch
+                {
+                    SourceKind.Epub => EpubCoverReader.Read(input),
+                    SourceKind.Azw3 => Azw3CoverReader.Read(input),
+                    SourceKind.M4b => M4bCoverReader.Read(input),
+                    _ => null
+                };
                 if (cover == null || !TryGetVersion(handle, source, out var checkedModified) || checkedModified != modified)
                 {
                     return false;
@@ -247,9 +275,9 @@ namespace NzbDrone.Core.MediaCover
 
         private Candidate FindCachedSource(int bookId, IReadOnlyList<Candidate> sources)
         {
-            // A valid existing derivative wins over trying the other format. Prefer
-            // the legacy audio derivative if historical state contains both caches.
-            return sources.Reverse().FirstOrDefault(source =>
+            // A current derivative wins over a new format. If historical state
+            // contains more than one, retain the pre-AZW3 M4B/EPUB cache priority.
+            return sources.OrderBy(source => source.Kind == SourceKind.M4b ? 0 : 1).FirstOrDefault(source =>
                 HasImage(CachePath(bookId, source.FileId, Token(bookId, source))) && IsRegisteredLocalPath(source.Path));
         }
 
@@ -274,12 +302,18 @@ namespace NzbDrone.Core.MediaCover
             }
 
             return rows.Where(row => row.FileId > 0 && row.Size > 0 && row.EditionId > 0 &&
-                    Guid.TryParseExact(row.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
-                    SupportedSourceFormat(row.Path, new Edition { Format = row.Format, IsEbook = row.IsEbook }).HasValue)
-                .GroupBy(row => row.IsEbook)
+                    Guid.TryParseExact(row.CanonicalId, "N", out var canonical) && canonical != Guid.Empty)
+                .Select(row => (Row: row, Kind: SupportedSourceKind(row.Path, new Edition { Format = row.Format, IsEbook = row.IsEbook })))
+                .Where(source => source.Kind.HasValue)
+                .GroupBy(source => source.Kind.Value)
                 .Where(group => group.Count() == 1)
-                .OrderByDescending(group => group.Key)
-                .Select(group => group.Single())
+                .OrderBy(group => group.Key)
+                .Select(group =>
+                {
+                    var row = group.Single().Row;
+                    row.Kind = group.Key;
+                    return row;
+                })
                 .ToList();
         }
 
@@ -438,6 +472,7 @@ namespace NzbDrone.Core.MediaCover
             public int EditionId { get; set; }
             public string Format { get; set; }
             public bool IsEbook { get; set; }
+            public SourceKind Kind { get; set; }
             public List<MediaCover> Images { get; set; }
             public int FileId { get; set; }
             public string Path { get; set; }

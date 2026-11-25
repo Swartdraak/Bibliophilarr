@@ -702,7 +702,10 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
         [TestCase(".EPUB", "EPUB", true, 19, true, true)]
         [TestCase(".epub", "Audiobook", false, 19, true, false)]
         [TestCase(".m4b", "EPUB", true, 19, true, false)]
+        [TestCase(".AZW3", "AZW3", true, 19, true, true)]
+        [TestCase(".azw3", "Ebook", true, 19, true, true)]
         [TestCase(".azw3", "EPUB", true, 19, true, false)]
+        [TestCase(".azw3", "Audiobook", false, 19, true, false)]
         [TestCase(".m4b", "Audiobook", false, 0, true, false)]
         [TestCase(".m4b", "Audiobook", false, 20, true, false)]
         [TestCase(".m4b", "Audiobook", false, 19, false, false)]
@@ -776,6 +779,63 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 writes.Should().Equal("metadata", "holds");
                 commands.Should().BeEmpty();
             }
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_handoff_one_current_file_per_container_in_cover_preference_order(bool ambiguousAzw3)
+        {
+            GivenAuthorFolder();
+            var book = new Book { Id = 8, CanonicalId = Guid.NewGuid().ToString("N") };
+            var changed = new DateTime(2024, 2, 9, 15, 30, 0, DateTimeKind.Utc);
+            var sources = new List<(string FileName, string Format, bool Ebook, Quality Quality, int Id)>
+            {
+                ("City Lights.m4b", "Audiobook", false, Quality.M4B, 21),
+                ("City Lights.azw3", "Ebook", true, Quality.AZW3, 22),
+                ("City Lights.epub", "EPUB", true, Quality.EPUB, 23)
+            };
+            if (ambiguousAzw3)
+            {
+                sources.Add(("Other City Lights.azw3", "AZW3", true, Quality.AZW3, 24));
+            }
+
+            var decisions = sources.Select(source => new ImportDecision<LocalBook>(new LocalBook
+            {
+                Path = Path.Combine(_author.Path, source.FileName),
+                Book = book,
+                Edition = new Edition { Id = source.Id + 10, BookId = book.Id, Format = source.Format, IsEbook = source.Ebook },
+                Size = 1111,
+                Modified = changed,
+                Quality = new QualityModel(source.Quality)
+            })).ToList();
+
+            GivenFiles(decisions.Select(decision => decision.Item.Path).ToArray());
+            var files = decisions.Select(decision => new BookFile
+            {
+                Id = decision.Item.Edition.Id - 10,
+                EditionId = decision.Item.Edition.Id,
+                Path = decision.Item.Path,
+                Size = decision.Item.Size,
+                Modified = changed,
+                Quality = decision.Item.Quality
+            }).ToList();
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFilesWithBasePath(_author.Path)).Returns(files);
+            Mocker.GetMock<IMakeImportDecision>()
+                .Setup(service => service.GetImportDecisions(It.IsAny<List<IFileInfo>>(), null, null, It.IsAny<ImportDecisionMakerConfig>()))
+                .Returns(decisions);
+            Mocker.GetMock<IImportApprovedBooks>()
+                .Setup(service => service.Import(decisions, false, null, ImportMode.Auto))
+                .Returns(decisions.Select(decision => new ImportResult(decision)).ToList());
+            IReadOnlyList<RecoverImportedBookCoverCommand> commands = Array.Empty<RecoverImportedBookCoverCommand>();
+            Mocker.GetMock<IEventAggregator>().Setup(events => events.PublishEvent(It.IsAny<EmbeddedBookCoversImportedEvent>()))
+                .Callback<EmbeddedBookCoversImportedEvent>(message => commands = message.Commands);
+
+            Subject.Scan(new List<string> { _author.Path });
+
+            var expectedOrder = ambiguousAzw3 ? new[] { 23, 21 } : new[] { 23, 22, 21 };
+            commands.Select(command => command.FileId).Should().Equal(expectedOrder);
+            commands.Should().OnlyContain(command => command.BookId == book.Id && command.CanonicalId == book.CanonicalId &&
+                command.EditionId == command.FileId + 10 && command.ModifiedTicks == changed.Ticks);
         }
 
         [Test]

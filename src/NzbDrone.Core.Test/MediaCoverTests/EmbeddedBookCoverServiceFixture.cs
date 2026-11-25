@@ -478,6 +478,165 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(It.IsAny<string>()), Times.Never);
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_keep_an_existing_cover_when_an_azw3_is_added(bool existingEpub)
+        {
+            var previous = existingEpub ? LinkEpub() : _file;
+            Subject.Recover(_book.Id).Should().BeTrue();
+            var url = Subject.GetUrl(_book.Id);
+            var token = url.Split('/').Last();
+            var cache = Subject.GetPath(_book.Id, previous.Id, token);
+            var originalBytes = File.ReadAllBytes(cache);
+
+            var azw3 = LinkAzw3();
+
+            Subject.RecoverImported(ForImport(_book, azw3)).Should().BeFalse();
+            Subject.Recover(_book.Id).Should().BeTrue();
+            Subject.GetUrl(_book.Id).Should().Be(url);
+            Subject.GetPath(_book.Id, previous.Id, token).Should().Be(cache);
+            Subject.GetPath(_book.Id, azw3.Id, token).Should().BeNull();
+            File.ReadAllBytes(cache).Should().Equal(originalBytes);
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.MoveFile(It.IsAny<string>(), It.IsAny<string>(), false), Times.Once());
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_prefer_epub_then_azw3_then_audio_when_recovering_current_sources(bool epubHasCover)
+        {
+            var azw3 = LinkAzw3();
+            var epub = LinkEpub(declareCover: epubHasCover);
+            var originalAzw3 = File.ReadAllBytes(azw3.Path);
+
+            Subject.Recover(_book.Id).Should().BeTrue();
+
+            var expected = epubHasCover ? epub : azw3;
+            var url = Subject.GetUrl(_book.Id);
+            url.Should().StartWith($"/read/library/api/v1/embeddedbookcover/{_book.Id}/{expected.Id}/");
+            var token = url.Split('/').Last();
+            using var cover = Image.Load(Subject.GetPath(_book.Id, expected.Id, token));
+            cover.Width.Should().Be(epubHasCover ? 24 : 20);
+            cover.Height.Should().Be(epubHasCover ? 36 : 30);
+            cover.Metadata.DecodedImageFormat.Should().BeSameAs(JpegFormat.Instance);
+            Db.All<BookFile>().Should().Contain(file => file.Id == azw3.Id && file.EditionId == azw3.EditionId);
+            Db.All<BookFile>().Should().Contain(file => file.Id == epub.Id && file.EditionId == epub.EditionId);
+            Db.All<BookFile>().Should().Contain(file => file.Id == _file.Id && file.EditionId == _edition.Id);
+            File.ReadAllBytes(azw3.Path).Should().Equal(originalAzw3);
+        }
+
+        [Test]
+        public void should_allow_only_the_exact_azw3_lease_after_a_separate_epub_job_abstains()
+        {
+            var azw3 = LinkAzw3(format: "AZW3");
+            var epub = LinkEpub(declareCover: false);
+            var stale = ForImport(_book, azw3);
+            stale.ModifiedTicks += TimeSpan.TicksPerSecond;
+
+            Subject.RecoverImported(ForImport(_book, epub)).Should().BeFalse();
+            Subject.RecoverImported(stale).Should().BeFalse();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+            Subject.RecoverImported(ForImport(_book, azw3)).Should().BeTrue();
+            var url = Subject.GetUrl(_book.Id);
+            var token = url.Split('/').Last();
+            Subject.GetPath(_book.Id, azw3.Id, token).Should().NotBeNull();
+
+            azw3.EditionId = 0;
+            Db.Update(azw3);
+            Subject.GetPath(_book.Id, azw3.Id, token).Should().BeNull();
+        }
+
+        [TestCase("EPUB", true)]
+        [TestCase("MOBI", true)]
+        [TestCase("Audiobook", false)]
+        [TestCase("AZW3", false)]
+        public void should_refuse_an_azw3_lease_with_conflicting_edition_format(string format, bool isEbook)
+        {
+            var azw3 = LinkAzw3(format: format, isEbook: isEbook);
+
+            Subject.RecoverImported(ForImport(_book, azw3)).Should().BeFalse();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(It.IsAny<string>()), Times.Never);
+        }
+
+        [Test]
+        public void should_abstain_on_two_azw3_candidates_without_hiding_epub()
+        {
+            var first = LinkAzw3();
+            var secondPath = Path.Combine(_library, "Other copy.AZW3");
+            File.Copy(first.Path, secondPath);
+            var second = Db.Insert(new BookFile
+            {
+                EditionId = first.EditionId,
+                Path = secondPath,
+                Size = first.Size,
+                Modified = File.GetLastWriteTimeUtc(secondPath),
+                Quality = new QualityModel(Quality.AZW3)
+            });
+            second = Db.All<BookFile>().Single(file => file.Id == second.Id);
+            var epub = LinkEpub();
+
+            Subject.RecoverImported(ForImport(_book, first)).Should().BeFalse();
+            Subject.RecoverImported(ForImport(_book, second)).Should().BeFalse();
+            Subject.RecoverImported(ForImport(_book, epub)).Should().BeTrue();
+            Subject.GetUrl(_book.Id).Should().StartWith($"/read/library/api/v1/embeddedbookcover/{_book.Id}/{epub.Id}/");
+        }
+
+        private BookFile LinkAzw3(string format = "Ebook", bool isEbook = true)
+        {
+            var edition = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "hardcover:edition:42",
+                Title = "City Lights",
+                TitleSlug = "city-lights-kindle",
+                Format = format,
+                IsEbook = isEbook
+            });
+
+            const int firstRecord = 104;
+            const int exth = firstRecord + 280;
+            const int skeleton = exth + 24;
+            const int cover = skeleton + 4;
+            var header = new byte[cover];
+            "BOOKMOBI"u8.CopyTo(header.AsSpan(60));
+            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(76), 3);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(78), firstRecord);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(86), skeleton);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(94), cover);
+            "MOBI"u8.CopyTo(header.AsSpan(firstRecord + 16));
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 20), 264);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 36), 8);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 104), 8);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 108), 2);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 128), 0x40);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 168), uint.MaxValue);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(firstRecord + 252), 1);
+            "EXTH"u8.CopyTo(header.AsSpan(exth));
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(exth + 4), 24);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(exth + 8), 1);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(exth + 12), 201);
+            BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(exth + 16), 12);
+            "INDX"u8.CopyTo(header.AsSpan(skeleton));
+
+            var path = Path.Combine(_library, "City Lights.AZW3");
+            using (var output = File.Create(path))
+            {
+                output.Write(header);
+                using var image = new Image<Rgba32>(20, 30);
+                image.SaveAsPng(output);
+            }
+
+            var stored = Db.Insert(new BookFile
+            {
+                EditionId = edition.Id,
+                Path = path,
+                Size = new FileInfo(path).Length,
+                Modified = File.GetLastWriteTimeUtc(path),
+                Quality = new QualityModel(Quality.AZW3)
+            });
+            return Db.All<BookFile>().Single(file => file.Id == stored.Id);
+        }
+
         private BookFile LinkEpub(bool declareCover = true, bool isEbook = true, string format = "EPUB")
         {
             var edition = Db.Insert(new Edition

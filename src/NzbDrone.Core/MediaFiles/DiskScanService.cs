@@ -376,20 +376,20 @@ namespace NzbDrone.Core.MediaFiles
                 .Select(result => result.ImportDecision.Item)
                 .Where(item => item.Book?.Id > 0 && Guid.TryParseExact(item.Book.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
                     item.Edition?.Id > 0 && item.Edition.BookId == item.Book.Id)
-                .Select(item => (Item: item, Format: EmbeddedBookCoverService.SupportedSourceFormat(item.Path, item.Edition)))
-                .Where(item => item.Format.HasValue)
+                .Select(item => (Item: item, Kind: EmbeddedBookCoverService.SupportedSourceKind(item.Path, item.Edition)))
+                .Where(item => item.Kind.HasValue)
                 .Join(
                     files.Where(file => file.Id > 0 && file.CalibreId == 0 && file.Size > 0 && file.Modified != default && !file.UnmappedReason.HasValue),
                     item => item.Item.Path,
                     file => file.Path,
-                    (item, file) => (item.Item, item.Format, File: file),
+                    (item, file) => (item.Item, item.Kind, File: file),
                     PathEqualityComparer.Instance)
                 .Where(match => match.Item.Edition.Id == match.File.EditionId)
                 .DistinctBy(match => (match.Item.Book.Id, match.File.Id, match.File.EditionId, match.File.Size, match.File.Modified))
-                .GroupBy(match => (match.Item.Book.Id, match.Format))
+                .GroupBy(match => (match.Item.Book.Id, match.Kind))
                 .Where(group => group.Count() == 1)
                 .Select(group => group.Single())
-                .OrderByDescending(match => match.Format == FormatType.Ebook)
+                .OrderBy(match => match.Kind)
                 .Select(match => new RecoverImportedBookCoverCommand
                 {
                     BookId = match.Item.Book.Id,
