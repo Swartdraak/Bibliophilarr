@@ -134,6 +134,7 @@ namespace NzbDrone.Core.Download
             try
             {
                 var request = indexer?.GetDownloadRequest(torrentUrl) ?? new HttpRequest(torrentUrl);
+                request.OmitSensitiveDiagnostics = true;
                 request.RateLimitKey = remoteBook?.Release?.IndexerId.ToString();
                 request.Headers.Accept = "application/x-bittorrent";
                 request.AllowAutoRedirect = false;

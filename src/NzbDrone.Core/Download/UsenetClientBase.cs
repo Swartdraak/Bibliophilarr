@@ -46,6 +46,7 @@ namespace NzbDrone.Core.Download
             try
             {
                 var request = indexer?.GetDownloadRequest(url) ?? new HttpRequest(url);
+                request.OmitSensitiveDiagnostics = true;
                 request.RateLimitKey = remoteBook?.Release?.IndexerId.ToString();
 
                 var response = await RetryStrategy

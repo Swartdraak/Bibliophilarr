@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Download;
@@ -129,7 +130,9 @@ namespace Bibliophilarr.Api.V1.Indexers
             }
             catch (ReleaseDownloadException ex)
             {
-                _logger.Error(ex, "Getting release from indexer failed");
+                var failure = ex.InnerException ?? ex;
+                var status = failure is HttpException { Response: { } response } ? (int?)response.StatusCode : null;
+                _logger.Error("Getting release from indexer failed ({0}, HTTP status {1}).", failure.GetType().Name, status);
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "Getting release from indexer failed");
             }
 
