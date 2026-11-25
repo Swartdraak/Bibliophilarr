@@ -37,6 +37,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex BareSeriesVolume = new Regex(@"^(.+\p{L})\s+([0-9]{1,3})$", RegexOptions.CultureInvariant);
         private static readonly Regex TrackTitleSuffix = new Regex(@"(?:^|[\s:,(–—-]+)(?:CHAPTERS?|DISCS?|PARTS?|TRACKS?)\s*[-#]?\s*[0-9]+(?:\s*[/–-]\s*[0-9]+)?\)?$", RegexOptions.CultureInvariant);
+        private static readonly Regex MultipartTrackTitle = new Regex(@"^(?:CHAPTERS?|DIS[CK]S?|PARTS?|TRACKS?)\b", RegexOptions.CultureInvariant);
         private static readonly Regex OmnibusBookRange = new Regex(@"(\bOMNIBUS\s+BOOKS?\s+[0-9]+)\s*[-–—]\s*([0-9]+)\b", RegexOptions.CultureInvariant);
         private static readonly Regex SubtitleDelimiter = new Regex(@"\s*:\s*|\s+[-–—]\s+", RegexOptions.CultureInvariant);
         private static readonly Regex GenreLine = new Regex(@"(?:: | \()A LITRPG ADVENTURE\)?$", RegexOptions.CultureInvariant);
@@ -387,7 +388,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     var workId = LogSanitizer.Sanitize(book?.ForeignBookId);
                     var editionId = LogSanitizer.Sanitize(edition.ForeignEditionId);
                     var format = ImportFormat.ForEdition(edition);
-                    var releaseIdentifierAgreement = HasNonconflictingEditionIdentifier(localBookRelease, edition);
+                    var releaseIdentifierAgreement = HasNonconflictingEditionIdentifier(localBookRelease.LocalBooks, edition);
                     foreach (var file in localBookRelease.LocalBooks)
                     {
                         _logger.Debug("Import hold LowConfidence file={0} work={1} edition={2} distance={3:F3} threshold={4:F2} candidateFormat={5} releaseIdentifierAgreement={6}",
@@ -437,6 +438,56 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 .Take(2)
                 .ToList();
             return titles.Count == 1 ? titles[0] : null;
+        }
+
+        internal static (string Author, string Album, string TrackTitle)? CaptureCorroboratedAudioTitle(LocalBook file)
+        {
+            var tags = file.FileTrackInfo;
+            if (!string.Equals(Path.GetExtension(file.Path), ".m4b", StringComparison.OrdinalIgnoreCase) ||
+                tags is not { AuthorConfidence: >= 0.9, BookTitleConfidence: >= 0.9, AudioTrackCount: <= 1, DiscNumber: <= 1, DiscCount: <= 1 } ||
+                tags.TrackNumbers is not { Length: 1 } || tags.TrackNumbers[0] != 1)
+            {
+                return null;
+            }
+
+            var (author, filenameTitle) = ReadFilenameIdentity(file);
+            var album = NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(tags.BookTitle));
+            var trackTitle = NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(tags.Title));
+            if (author == null || album == null || trackTitle == null ||
+                MultipartTrackTitle.IsMatch(trackTitle) || TrackTitleSuffix.IsMatch(trackTitle) ||
+                trackTitle != NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(filenameTitle)) ||
+                TitlesAgree(trackTitle, album))
+            {
+                return null;
+            }
+
+            return (author, album, trackTitle);
+        }
+
+        internal static LocalBook FindCorroboratedAudioTitleConflict(LocalEdition release)
+        {
+            var edition = release.Edition;
+            if (edition?.Book?.Value is not { Id: > 0, AuthorMetadataId: > 0 } book ||
+                ImportFormat.ForEdition(edition) != FormatType.Audiobook)
+            {
+                return null;
+            }
+
+            // A catalogue companion is not part of the newly scanned release.
+            var file = release.LocalBooks.Where(track => !track.AdditionalFile).ExclusiveOrDefault();
+            if (file?.CorroboratedAudioTitle is not { } evidence ||
+                !AuthorNameMatches(book.AuthorMetadata?.Value?.Name ?? book.Author?.Value?.Name, evidence.Author))
+            {
+                return null;
+            }
+
+            var bookTitle = ImportDecisionMaker.NormalizeLibraryIdentity(book.Title);
+            var editionTitle = ImportDecisionMaker.NormalizeLibraryIdentity(edition.Title);
+            return (TitlesAgree(evidence.Album, bookTitle) || TitlesAgree(evidence.Album, editionTitle)) &&
+                !TitlesAgree(evidence.TrackTitle, bookTitle) && !TitlesAgree(evidence.TrackTitle, editionTitle) &&
+                !HasNonconflictingEditionIdentifier([file], edition)
+                ? file
+                : null;
         }
 
         internal static bool HasConflictingWorkOrdinal(LocalEdition release, IdentificationOverrides overrides, ImportDecisionMakerConfig config)
@@ -616,7 +667,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             var confirmed = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(taggedTitle, string.Empty));
             if (confirmed.Length > 0 && corroboratedAuthors.Any(knownAuthor => AuthorNameMatches(author, knownAuthor)) &&
                 !TitlesAgree(confirmed, workTitle) && !TitlesAgree(confirmed, editionTitle) &&
-                !HasNonconflictingEditionIdentifier(release, edition))
+                !HasNonconflictingEditionIdentifier(release.LocalBooks, edition))
             {
                 _logger.Debug("Skipping library scan candidate {0} because its title contradicts the embedded title and filename", edition);
 
@@ -683,12 +734,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                 !GuideSuffix.IsMatch(suffix) && !DistinctWorkScope.IsMatch(suffix[1..].TrimStart());
         }
 
-        private static bool HasNonconflictingEditionIdentifier(LocalEdition release, Edition edition)
+        private static bool HasNonconflictingEditionIdentifier(IEnumerable<LocalBook> files, Edition edition)
         {
             var editionIsbn = Isbn.AsIsbn13(edition?.Isbn13);
             var editionAsin = NormalizeAsin(edition?.Asin);
             var match = false;
-            foreach (var track in release.LocalBooks)
+            foreach (var track in files)
             {
                 var tags = track.FileTrackInfo;
                 var isbn = tags?.IsbnConfidence >= 0.9 ? Isbn.AsIsbn13(tags.Isbn) : null;
@@ -735,7 +786,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             if (GetExplicitEbookQuality(selected) == Quality.Unknown || tags.IsbnConfidence < 0.9 ||
-                !Isbn.AreEquivalent(tags.Isbn, selected.Isbn13) || !HasNonconflictingEditionIdentifier(release, selected))
+                !Isbn.AreEquivalent(tags.Isbn, selected.Isbn13) || !HasNonconflictingEditionIdentifier(release.LocalBooks, selected))
             {
                 return;
             }
@@ -747,7 +798,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     GetExplicitEbookQuality(candidate.Edition) == fileQuality &&
                     Isbn.AreEquivalent(tags.Isbn, candidate.Edition.Isbn13) &&
                     (selectedAsin == null || NormalizeAsin(candidate.Edition.Asin) is not { } asin || asin == selectedAsin) &&
-                    HasNonconflictingEditionIdentifier(release, candidate.Edition))
+                    HasNonconflictingEditionIdentifier(release.LocalBooks, candidate.Edition))
                 .DistinctBy(candidate => candidate.Edition.Id)
                 .Select(candidate => GetLocalEditionMatch(release, candidate, diskTracks))
                 .Where(match => match.Distance.NormalizedDistance() <= release.Distance.NormalizedDistance())

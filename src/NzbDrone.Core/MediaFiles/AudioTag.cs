@@ -585,6 +585,7 @@ namespace NzbDrone.Core.MediaFiles
                 AsinConfidence = tag.Asin == null ? 0.0 : 0.9,
                 DiscNumber = (int)tag.Disc,
                 DiscCount = (int)tag.DiscCount,
+                AudioTrackCount = tag.TrackCount,
                 Year = tag.Year,
                 Label = tag.Publisher,
                 TrackNumbers = new[] { (int)tag.Track },

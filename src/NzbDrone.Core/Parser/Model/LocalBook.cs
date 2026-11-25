@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Parser.Model
         public string SceneName { get; set; }
 
         internal string ReliableTaggedBookTitle { get; set; }
+        internal (string Author, string Album, string TrackTitle)? CorroboratedAudioTitle { get; set; }
         internal int? RawTaggedPart { get; set; }
         internal bool IsUnattendedLibraryImport { get; set; }
         internal bool IsLibraryScan { get; set; }

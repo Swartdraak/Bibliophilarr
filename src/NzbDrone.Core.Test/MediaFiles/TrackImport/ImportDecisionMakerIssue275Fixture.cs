@@ -215,6 +215,100 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             decision.Item.Edition.Should().BeSameAs(edition);
         }
 
+        [TestCase("Cloud Almanac", 1, false, false, false, true)]
+        [TestCase("Cloud Almanac", 1, false, false, true, true)]
+        [TestCase("Cloud Almanac", 1, true, false, false, false)]
+        [TestCase("Cloud Almanac", 1, false, true, false, false)]
+        [TestCase("Cloud Almanac", 2, false, false, false, false)]
+        [TestCase("Chapter 1", 1, false, false, false, false)]
+        [TestCase("Chapter One", 1, false, false, false, false)]
+        [TestCase("Cloud Almanac", 1, false, false, false, false, 2)]
+        [TestCase("Cloud Almanac", 1, false, false, false, true, 0, true)]
+        [TestCase("Chapter 1", 1, false, false, false, false, 0, true)]
+        public void should_hold_a_corroborated_audiobook_title_conflict_before_import(
+            string trackTitle, int trackNumber, bool exactIdentifier, bool explicitSelection, bool includeCompanion, bool shouldHold, int trackCount = 0, bool fallback = false)
+        {
+            const string author = "Christine Feehan";
+            const string album = "Dark Crime";
+            const string asin = "B012345678";
+            _filePath = $@"C:\Test\Unsorted\{author} - {trackTitle}.m4b".AsOsAgnostic();
+            FileSystem.AddFile(_filePath, new MockFileData(string.Empty));
+            _fileInfos = new List<IFileInfo> { DiskProvider.GetFileInfo(_filePath) };
+            _idConfig.NewDownload = false;
+            _idConfig.IncludeExisting = true;
+            GivenRealBookMatchPolicy();
+
+            var (book, edition) = BuildMatch();
+            book.Author.Value.AuthorMetadataId = book.AuthorMetadataId;
+            edition.IsEbook = false;
+            edition.Format = "Audiobook";
+            edition.Title = album;
+            edition.Asin = asin;
+            if (fallback)
+            {
+                GivenFallbackWorks(book);
+            }
+
+            Mocker.GetMock<IMetadataTagService>().Setup(service => service.ReadTags(It.IsAny<IFileInfo>()))
+                .Returns(new ParsedTrackInfo
+                {
+                    Authors = new List<string> { author },
+                    BookTitle = album,
+                    Title = trackTitle,
+                    TrackNumbers = new[] { trackNumber },
+                    AudioTrackCount = (uint)trackCount,
+                    Asin = exactIdentifier ? asin : null,
+                    AsinConfidence = exactIdentifier ? 0.95 : 0
+                });
+
+            var companion = new LocalBook
+            {
+                Path = @"C:\Test\Library\Christine Feehan - Dark Crime.m4b".AsOsAgnostic(),
+                AdditionalFile = true,
+                ExistingFile = true,
+                Part = 1,
+                FileTrackInfo = new ParsedTrackInfo { Asin = asin, AsinConfidence = 1.0 }
+            };
+
+            Mocker.GetMock<IIdentificationService>()
+                .Setup(service => service.Identify(It.IsAny<List<LocalBook>>(), It.IsAny<IdentificationOverrides>(), It.IsAny<ImportDecisionMakerConfig>(), It.IsAny<ImportRunSummary>()))
+                .Returns((List<LocalBook> tracks, IdentificationOverrides _, ImportDecisionMakerConfig _, ImportRunSummary _) =>
+                {
+                    if (fallback)
+                    {
+                        return new List<LocalEdition> { new LocalEdition(tracks) };
+                    }
+
+                    var release = new LocalEdition(tracks)
+                    {
+                        Edition = edition,
+                        Distance = new Distance(),
+                        ExistingTracks = includeCompanion ? new List<LocalBook> { companion } : new List<LocalBook>()
+                    };
+                    release.PopulateMatch(true);
+                    return new List<LocalEdition> { release };
+                });
+
+            var overrides = explicitSelection ? new IdentificationOverrides { Book = book } : null;
+            var decisions = Subject.GetImportDecisions(_fileInfos, overrides, null, _idConfig);
+            var decision = decisions.Single(candidate => candidate.Item.Path == _filePath);
+
+            decision.Approved.Should().Be(!shouldHold);
+            if (shouldHold)
+            {
+                decision.Rejections.Should().ContainSingle().Which.HoldReason.Should().Be(LibraryImportHoldReason.ConflictingIdentity);
+                decisions.Should().ContainSingle();
+            }
+            else
+            {
+                decision.Item.Edition.Should().BeSameAs(edition);
+            }
+
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Verify(service => service.SearchForLibraryImport(album, author, It.IsAny<Func<List<Book>, bool>>()), fallback ? Times.Once() : Times.Never());
+            orchestrator.VerifyNoOtherCalls();
+        }
+
         [TestCase(LibraryImportHoldReason.LowConfidence, false)]
         [TestCase(LibraryImportHoldReason.LowConfidence, true)]
         [TestCase(LibraryImportHoldReason.ProviderIdentityConflict, false)]

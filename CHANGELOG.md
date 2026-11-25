@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Hold ambiguous M4B imports when the embedded track title and author-prefixed
+  filename agree but the album identifies a different work.
 - When a library scan generates a temporary opposite-format default for a new
   author, use the compatible root and quality profile once that root is added.
   Existing format settings and file links stay in place.

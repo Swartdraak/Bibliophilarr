@@ -179,6 +179,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var fileTrackInfo = localTrack.FileTrackInfo;
                 localTrack.Part = fileTrackInfo.TrackNumbers.Any() ? fileTrackInfo.TrackNumbers.First() : 1;
                 localTrack.ReliableTaggedBookTitle = IdentificationService.CaptureReliableTaggedBookTitle(fileTrackInfo);
+                if (!config.NewDownload)
+                {
+                    localTrack.CorroboratedAudioTitle = IdentificationService.CaptureCorroboratedAudioTitle(localTrack);
+                }
+
                 if (ImportFormat.ForPath(localTrack.Path) == FormatType.Audiobook &&
                     fileTrackInfo.DiscNumber <= 1 && fileTrackInfo.DiscCount <= 1)
                 {
@@ -304,6 +309,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
+                if (!conflictingOrdinal && !config.NewDownload &&
+                    idOverrides.Author == null && idOverrides.Book == null && idOverrides.Edition == null &&
+                    IdentificationService.FindCorroboratedAudioTitleConflict(release) is { } conflictingAudioFile)
+                {
+                    const string detail = "The audiobook's embedded track title and filename agree but its album names a different work. Select the intended work manually.";
+                    _logger.Debug("Import hold ConflictingIdentity file={0} detail={1}", LogSanitizer.Sanitize(conflictingAudioFile.Path), detail);
+                    decisions.Add(new ImportDecision<LocalBook>(conflictingAudioFile, new Rejection(detail, holdReason: LibraryImportHoldReason.ConflictingIdentity)));
+                    runSummary.Rejected++;
+                    ReportReleaseProgress();
+                    continue;
+                }
+
                 release.NewDownload = config.NewDownload;
 
                 ImportDecision<LocalEdition> releaseDecision;
@@ -346,6 +363,11 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                 }
 
+                ReportReleaseProgress();
+            }
+
+            void ReportReleaseProgress()
+            {
                 checkedReleases++;
                 if (checkedReleases % progressInterval == 0 || checkedReleases == releases.Count)
                 {
