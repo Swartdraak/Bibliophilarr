@@ -63,6 +63,7 @@ class RootFolder extends Component {
     return (
       <Card
         className={styles.rootFolder}
+        ariaLabel={translate('EditNamedItem', { name })}
         overlayContent={true}
         onPress={this.onEditRootFolderPress}
       >
