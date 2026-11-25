@@ -7,10 +7,14 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Books.Calibre;
 using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
@@ -131,6 +135,16 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 }).ToList());
         }
 
+        private LogFactory CaptureBookDiscoveryLogs(out MemoryTarget messages)
+        {
+            messages = new MemoryTarget { Layout = "${level}|${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            var logFactory = new LogFactory { Configuration = configuration };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(DiskScanService)));
+            return logFactory;
+        }
+
         [Test]
         public void should_not_scan_if_root_folder_does_not_exist()
         {
@@ -178,6 +192,54 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
 
             Mocker.GetMock<IMediaFileTableCleanupService>()
                   .Verify(v => v.Clean(It.IsAny<string>(), It.IsAny<List<string>>()), Times.Once());
+        }
+
+        [Test]
+        public void should_log_single_line_paths_for_local_book_discovery()
+        {
+            const string path = "/library/Fixture\r\nShelf\tOne";
+            const string loggedPath = "/library/FixtureShelf One";
+            var book = new Mock<IFileInfo>();
+            book.SetupGet(file => file.Extension).Returns(".epub");
+            var other = new Mock<IFileInfo>();
+            other.SetupGet(file => file.Extension).Returns(".txt");
+            Mocker.GetMock<IDiskProvider>()
+                .Setup(disk => disk.GetFileInfos(path, true))
+                .Returns(new List<IFileInfo> { book.Object, other.Object });
+            using var logFactory = CaptureBookDiscoveryLogs(out var messages);
+
+            Subject.GetBookFiles(path).Should().Equal(book.Object);
+
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(path), Times.Once());
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.GetFileInfos(path, true), Times.Once());
+            messages.Logs.Where(message => message.Contains("Fixture", StringComparison.Ordinal)).Should().Equal(
+                $"Debug|Scanning '{loggedPath}' for ebook files",
+                $"Trace|2 files were found in {loggedPath}",
+                $"Debug|1 book files were found in {loggedPath}");
+        }
+
+        [Test]
+        public void should_log_single_line_paths_for_calibre_book_discovery()
+        {
+            const string path = "/library/Fixture\r\nShelf\tOne";
+            const string loggedPath = "/library/FixtureShelf One";
+            var settings = new CalibreSettings();
+            Mocker.GetMock<IRootFolderService>()
+                .Setup(roots => roots.GetBestRootFolder(path))
+                .Returns(new RootFolder { Path = _rootFolder, IsCalibreLibrary = true, CalibreSettings = settings });
+            Mocker.GetMock<ICalibreProxy>()
+                .Setup(calibre => calibre.GetAllBookFilePaths(settings))
+                .Returns(new List<string>());
+            using var logFactory = CaptureBookDiscoveryLogs(out var messages);
+
+            Subject.GetBookFiles(path).Should().BeEmpty();
+
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(path), Times.Once());
+            Mocker.GetMock<ICalibreProxy>().Verify(calibre => calibre.GetAllBookFilePaths(settings), Times.Once());
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.GetFileInfos(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+            messages.Logs.Where(message => message.Contains("Fixture", StringComparison.Ordinal)).Should().Equal(
+                $"Info|Getting book list from calibre for {loggedPath}",
+                $"Debug|0 book files were found in {loggedPath}");
         }
 
         [Test]
