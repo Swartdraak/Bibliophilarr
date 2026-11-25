@@ -20,6 +20,9 @@ process.
 
 ### Fixed
 
+- Keep Inventaire work covers out of author portraits when the source supplies
+  no author image.
+
 - Give the Add Root Folder and individual root folder edit buttons accessible names.
 - Make the Theme setting announce its label and keep keyboard focus while
   selecting or dismissing its options.
