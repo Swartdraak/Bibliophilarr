@@ -39,6 +39,8 @@ namespace NzbDrone.Host.Test
         private const string ForeignEditionId = "hardcover:edition:92629";
         private const string OtherForeignBookId = "hardcover:work:92630";
         private const string OtherForeignEditionId = "hardcover:edition:92631";
+        private const string ConflictingForeignAuthorId = "hardcover:author:92635";
+        private const string ConflictingForeignBookId = "hardcover:work:92636";
         private const string AuthorName = "Nested Author Fixture";
         private const string BookTitle = "The Nested Author Fixture";
         private const string OtherBookTitle = "The Companion Fixture";
@@ -234,6 +236,18 @@ namespace NzbDrone.Host.Test
             var books = provider.As<IProvideBookInfo>();
             books.Setup(p => p.GetBookInfo(ForeignBookId)).Returns(() => BookMetadata(ForeignBookId, ForeignEditionId, BookTitle, includeAudioEdition));
             books.Setup(p => p.GetBookInfo(OtherForeignBookId)).Returns(() => BookMetadata(OtherForeignBookId, OtherForeignEditionId, OtherBookTitle));
+            books.Setup(p => p.GetBookInfo(ConflictingForeignBookId)).Returns(() =>
+            {
+                var result = BookMetadata(ConflictingForeignBookId, ForeignEditionId, "The Conflicting Work");
+                var author = result.Item3.Single();
+                author.ForeignAuthorId = ConflictingForeignAuthorId;
+                author.Name = "Independent Author Fixture";
+                author.SortName = "independent author fixture";
+                author.NameLastFirst = "Fixture, Independent Author";
+                author.SortNameLastFirst = "fixture, independent author";
+                author.TitleSlug = "independent-author-fixture";
+                return Tuple.Create(author.ForeignAuthorId, result.Item2, result.Item3);
+            });
             provider.As<IProvideAuthorInfo>().Setup(p => p.GetAuthorInfo(ForeignAuthorId, It.IsAny<bool>())).Returns(() =>
             {
                 var metadata = AuthorMetadata();
