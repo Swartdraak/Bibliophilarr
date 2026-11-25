@@ -7,12 +7,14 @@ namespace NzbDrone.Core.Books.Events
         public Book Book { get; private set; }
         public bool DeleteFiles { get; private set; }
         public bool AddImportListExclusion { get; private set; }
+        public bool MediaAlreadyRemoved { get; }
 
-        public BookDeletedEvent(Book book, bool deleteFiles, bool addImportListExclusion)
+        public BookDeletedEvent(Book book, bool deleteFiles, bool addImportListExclusion, bool mediaAlreadyRemoved = false)
         {
             Book = book;
             DeleteFiles = deleteFiles;
             AddImportListExclusion = addImportListExclusion;
+            MediaAlreadyRemoved = mediaAlreadyRemoved;
         }
     }
 }

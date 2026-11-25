@@ -6,6 +6,7 @@ import Portal from 'Components/Portal';
 import { kinds, tooltipPositions } from 'Helpers/Props';
 import dimensions from 'Styles/Variables/dimensions';
 import { isMobile as isMobileUtil } from 'Utilities/browser';
+import getUniqueElementId from 'Utilities/getUniqueElementId';
 import styles from './Tooltip.css';
 
 let maxWidth = null;
@@ -36,6 +37,8 @@ class Tooltip extends Component {
 
     this._scheduleUpdate = null;
     this._closeTimeout = null;
+    this._tooltipId = getUniqueElementId();
+    this._triggerPointerType = null;
     this._maxWidth = maxWidth || getMaxWidth();
 
     this.state = {
@@ -97,6 +100,48 @@ class Tooltip extends Component {
     }
   };
 
+  onTriggerPointerEnter = (event) => {
+    if (event.pointerType !== 'touch') {
+      this.onMouseEnter();
+    }
+  };
+
+  onTriggerPointerLeave = (event) => {
+    if (event.pointerType !== 'touch') {
+      this.onMouseLeave();
+    }
+  };
+
+  onTriggerPointerDown = (event) => {
+    this._triggerPointerType = event.pointerType;
+  };
+
+  onTriggerClick = (event) => {
+    if (this._closeTimeout) {
+      this._closeTimeout = clearTimeout(this._closeTimeout);
+    }
+
+    const isTouch = this._triggerPointerType === 'touch';
+    this._triggerPointerType = null;
+
+    if (event.detail === 0 || isTouch) {
+      this.setState(({ isOpen }) => ({ isOpen: !isOpen }));
+    } else {
+      this.setState({ isOpen: true });
+    }
+  };
+
+  onTriggerBlur = () => {
+    this.setState({ isOpen: false });
+  };
+
+  onTriggerKeyDown = (event) => {
+    if (event.key === 'Escape' && this.state.isOpen) {
+      event.stopPropagation();
+      this.onTriggerBlur();
+    }
+  };
+
   onMouseEnter = () => {
     if (this._closeTimeout) {
       this._closeTimeout = clearTimeout(this._closeTimeout);
@@ -122,8 +167,10 @@ class Tooltip extends Component {
       tooltip,
       kind,
       position,
-      canFlip
+      canFlip,
+      triggerLabel
     } = this.props;
+    const { isOpen } = this.state;
 
     return (
       <Manager>
@@ -132,11 +179,27 @@ class Tooltip extends Component {
             <span
               ref={ref}
               className={className}
-              onClick={this.onClick}
-              onMouseEnter={this.onMouseEnter}
-              onMouseLeave={this.onMouseLeave}
+              onClick={triggerLabel ? undefined : this.onClick}
+              onMouseEnter={triggerLabel ? undefined : this.onMouseEnter}
+              onMouseLeave={triggerLabel ? undefined : this.onMouseLeave}
+              onPointerEnter={triggerLabel ? this.onTriggerPointerEnter : undefined}
+              onPointerLeave={triggerLabel ? this.onTriggerPointerLeave : undefined}
             >
-              {anchor}
+              {triggerLabel ? (
+                <button
+                  className={styles.trigger}
+                  type="button"
+                  aria-label={triggerLabel}
+                  aria-expanded={isOpen}
+                  aria-describedby={isOpen ? this._tooltipId : undefined}
+                  onClick={this.onTriggerClick}
+                  onPointerDown={this.onTriggerPointerDown}
+                  onBlur={this.onTriggerBlur}
+                  onKeyDown={this.onTriggerKeyDown}
+                >
+                  {anchor}
+                </button>
+              ) : anchor}
             </span>
           )}
         </Reference>
@@ -190,8 +253,10 @@ class Tooltip extends Component {
                     style={arrowProps.style}
                   />
                   {
-                    this.state.isOpen ?
+                    isOpen ?
                       <div
+                        id={triggerLabel ? this._tooltipId : undefined}
+                        role={triggerLabel ? 'tooltip' : undefined}
                         className={classNames(
                           styles.tooltip,
                           styles[kind]
@@ -222,7 +287,8 @@ Tooltip.propTypes = {
   tooltip: PropTypes.oneOfType([PropTypes.string, PropTypes.node]).isRequired,
   kind: PropTypes.oneOf([kinds.DEFAULT, kinds.INVERSE]),
   position: PropTypes.oneOf(tooltipPositions.all),
-  canFlip: PropTypes.bool.isRequired
+  canFlip: PropTypes.bool.isRequired,
+  triggerLabel: PropTypes.string
 };
 
 Tooltip.defaultProps = {

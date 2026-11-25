@@ -27,6 +27,7 @@ namespace NzbDrone.Core.MediaFiles
         void SetUnmappedReasons(List<BookFile> files);
         bool TryRepairUnsupportedEditionLink(BookFile file, Edition previous, Edition edition);
         void DeleteFilesByBook(int bookId);
+        bool DeleteMatchingFile(BookFile file);
         void UnlinkFilesByBook(int bookId);
     }
 
@@ -101,6 +102,18 @@ namespace NzbDrone.Core.MediaFiles
         {
             var fileIds = GetFilesByBook(bookId).Select(x => x.Id).ToList();
             Delete(x => fileIds.Contains(x.Id));
+        }
+
+        public bool DeleteMatchingFile(BookFile file)
+        {
+            using var connection = _database.OpenConnection();
+            return connection.Execute(
+                """
+                DELETE FROM "BookFiles"
+                WHERE "Id" = @Id AND "Path" = @Path AND "EditionId" = @EditionId
+                AND "CalibreId" = @CalibreId AND "Size" = @Size AND "Modified" = @Modified
+                """,
+                new { file.Id, file.Path, file.EditionId, file.CalibreId, file.Size, file.Modified }) == 1;
         }
 
         public void UnlinkFilesByBook(int bookId)

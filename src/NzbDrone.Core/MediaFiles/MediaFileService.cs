@@ -330,6 +330,11 @@ namespace NzbDrone.Core.MediaFiles
 
         public void HandleAsync(BookDeletedEvent message)
         {
+            if (message.MediaAlreadyRemoved)
+            {
+                return;
+            }
+
             if (message.DeleteFiles)
             {
                 _mediaFileRepository.DeleteFilesByBook(message.Book.Id);

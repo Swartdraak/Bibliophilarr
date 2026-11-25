@@ -45,11 +45,17 @@ process.
 
 ### Fixed
 
+- Clear hidden Bookshelf selections when a filter removes the selected authors.
+- Preserve existing book monitoring when Bookshelf is set to No Change for existing books.
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
+- Remove tracked files when explicitly deleting their book and report failures
+  before removing the book from the catalogue.
 - Keep the order set by dragging Delay Profiles and apply the new priority
   to matching releases immediately.
 - Remove an author's format profiles when deleting that author.
 - Open System Events details from the keyboard and return focus after closing.
+- Open Interactive Search format scores and rejection reasons with the
+  keyboard or a touch tap.
 - Recognize editions labeled Audio as audiobooks when matching library files.
 - Follow verified Open Library ISBN redirects and continue the work ID backfill
   when an ISBN lookup returns no match.
@@ -60,8 +66,9 @@ process.
   exclusions.
 - Keep the first book, verified new author and format profiles in one save so
   an edition conflict leaves the catalogue unchanged.
-- Add an exact provider edition through the Add Book API for an existing author
-  when the request omits the edition list.
+- Add a verified exact provider edition through the Add Book API when the
+  request omits the edition list. For a verified new author, save the author,
+  format profiles, work, and edition together.
 - Cache a verified alternate Hardcover edition cover when the primary cover
   is missing.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open

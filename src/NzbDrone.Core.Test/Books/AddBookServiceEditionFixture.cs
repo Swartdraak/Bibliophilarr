@@ -119,6 +119,171 @@ namespace NzbDrone.Core.Test.BooksTests
             Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
         }
 
+        [TestCase("openlibrary:work:OL801W", "OL801W", "openlibrary:author:OL802A", "openlibrary:edition:OL803M", "Ebook", true)]
+        [TestCase("hardcover:work:801", "hardcover:work:801", "hardcover:author:802", "hardcover:source-edition:803", "Audiobook", false)]
+        public void should_atomically_add_the_first_book_with_a_verified_scalar_edition(
+            string workId, string lookupId, string authorId, string editionId, string format, bool isEbook)
+        {
+            var verifiedAuthor = new AuthorMetadata { ForeignAuthorId = authorId, Name = "Verified provider author" };
+            var edition = new Edition { ForeignEditionId = editionId, Format = format, IsEbook = isEbook };
+            var request = RequestScalarFirstBook(workId, editionId, authorId);
+            var claim = request.Author.Value;
+            claim.AuthorMetadataId = 733;
+            claim.Tags.Add(17);
+            claim.Monitored = true;
+            claim.MonitorNewItems = NewItemMonitorTypes.None;
+            claim.AddOptions.EbookRootFolderPath = "/ebooks";
+            claim.AddOptions.AudiobookRootFolderPath = "/audio";
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(service => service.GetBookInfo(lookupId))
+                .Returns(ScalarProviderResult(workId, verifiedAuthor, edition, new List<AuthorMetadata> { verifiedAuthor }));
+            var authorAdder = Mocker.GetMock<IAddAuthorService>();
+            Author persistedAuthor = null;
+            authorAdder.Setup(service => service.AddNewAuthorWithBook(It.IsAny<Author>(), request, true))
+                .Callback<Author, Book, bool>((author, _, _) => persistedAuthor = author)
+                .Returns(request);
+
+            var result = Subject.AddBookByExactEdition(request, 0);
+
+            result.Should().BeSameAs(request);
+            result.AuthorMetadata.Value.Should().BeSameAs(verifiedAuthor);
+            result.Editions.Value.Should().ContainSingle().Which.Should().BeSameAs(edition);
+            result.ForeignEditionId.Should().Be(editionId);
+            edition.Monitored.Should().BeTrue();
+            edition.ManualAdd.Should().BeTrue();
+            persistedAuthor.Should().NotBeSameAs(claim);
+            persistedAuthor.AuthorMetadataId.Should().Be(0);
+            persistedAuthor.Metadata.Value.Should().BeSameAs(verifiedAuthor);
+            result.Author.Value.Should().BeSameAs(persistedAuthor);
+            persistedAuthor.RootFolderPath.Should().Be(claim.RootFolderPath);
+            persistedAuthor.QualityProfileId.Should().Be(claim.QualityProfileId);
+            persistedAuthor.MetadataProfileId.Should().Be(claim.MetadataProfileId);
+            persistedAuthor.Tags.Should().BeEquivalentTo(claim.Tags);
+            persistedAuthor.Monitored.Should().BeTrue();
+            persistedAuthor.MonitorNewItems.Should().Be(NewItemMonitorTypes.None);
+            persistedAuthor.AddOptions.EbookQualityProfileId.Should().Be(5);
+            persistedAuthor.AddOptions.AudiobookQualityProfileId.Should().Be(6);
+            persistedAuthor.AddOptions.EbookRootFolderPath.Should().Be("/ebooks");
+            persistedAuthor.AddOptions.AudiobookRootFolderPath.Should().Be("/audio");
+            authorAdder.Verify(service => service.AddNewAuthorWithBook(persistedAuthor, request, true), Times.Once());
+            authorAdder.VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().Verify(service => service.FindById(workId), Times.Once());
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Verify(service => service.GetBookInfo(lookupId), Times.Once());
+            Mocker.GetMock<IMetadataProviderOrchestrator>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("missing metadata")]
+        [TestCase("ambiguous metadata")]
+        [TestCase("missing name")]
+        [TestCase("different author claim")]
+        [TestCase("nested stored identity")]
+        [TestCase("top-level stored identity")]
+        [TestCase("malformed source")]
+        public void should_reject_a_scalar_first_book_without_a_verified_new_author(string scenario)
+        {
+            const string workId = "hardcover:work:801";
+            const string editionId = "hardcover:source-edition:803";
+            var authorId = scenario == "malformed source" ? "hardcover:author:not-numeric" : "hardcover:author:802";
+            var verifiedAuthor = new AuthorMetadata
+            {
+                ForeignAuthorId = authorId,
+                Name = scenario == "missing name" ? string.Empty : "Verified provider author"
+            };
+            var authors = new List<AuthorMetadata> { verifiedAuthor };
+            if (scenario == "missing metadata")
+            {
+                authors.Clear();
+            }
+            else if (scenario == "ambiguous metadata")
+            {
+                authors.Add(new AuthorMetadata { ForeignAuthorId = authorId, Name = "Second provider record" });
+            }
+
+            var edition = new Edition { ForeignEditionId = editionId, Format = "Audiobook" };
+            var request = RequestScalarFirstBook(workId, editionId, scenario == "different author claim" ? "hardcover:author:805" : authorId);
+            request.Author.Value.Id = scenario == "nested stored identity" ? 31 : 0;
+            var claimedAuthorId = scenario == "top-level stored identity" ? 31 : 0;
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(service => service.GetBookInfo(workId))
+                .Returns(ScalarProviderResult(workId, verifiedAuthor, edition, authors));
+
+            var add = () => Subject.AddBookByExactEdition(request, claimedAuthorId);
+
+            add.Should().Throw<ValidationException>().Which.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Author.ForeignAuthorId");
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+        }
+
+        [TestCase(0, 0, true)]
+        [TestCase(42, 42, true)]
+        [TestCase(43, 0, false)]
+        [TestCase(0, 43, false)]
+        public void should_verify_numeric_claims_against_the_stored_provider_owner(int nestedClaim, int resourceClaim, bool accepted)
+        {
+            const string workId = "hardcover:work:801";
+            const string authorId = "hardcover:author:802";
+            const string editionId = "hardcover:source-edition:803";
+            var metadata = new AuthorMetadata { Id = 24, ForeignAuthorId = authorId, Name = "Stored author" };
+            var owner = new Author { Id = 42, AuthorMetadataId = metadata.Id, Metadata = metadata };
+            var providerAuthor = new AuthorMetadata { ForeignAuthorId = authorId, Name = "Verified provider author" };
+            var edition = new Edition { ForeignEditionId = editionId, Format = "Audiobook" };
+            var request = RequestScalarFirstBook(workId, editionId, authorId);
+            request.Author.Value.Id = nestedClaim;
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(authorId)).Returns(owner);
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(service => service.GetBookInfo(workId))
+                .Returns(ScalarProviderResult(workId, providerAuthor, edition, new List<AuthorMetadata> { providerAuthor }));
+            var bookService = Mocker.GetMock<IBookService>();
+
+            if (accepted)
+            {
+                var stored = Subject.AddBookByExactEdition(request, resourceClaim);
+                stored.Author.Value.Should().BeSameAs(owner);
+                stored.AuthorMetadata.Value.Should().BeSameAs(metadata);
+                stored.AuthorMetadataId.Should().Be(metadata.Id);
+                bookService.Verify(service => service.FindById(workId), Times.Once());
+                bookService.Verify(service => service.AddBook(stored, true), Times.Once());
+            }
+            else
+            {
+                var add = () => Subject.AddBookByExactEdition(request, resourceClaim);
+                add.Should().Throw<ValidationException>().Which.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Author.ForeignAuthorId");
+                Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            }
+
+            Mocker.GetMock<IAuthorService>().Verify(service => service.FindById(authorId), Times.Once());
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            bookService.VerifyNoOtherCalls();
+        }
+
+        private static Tuple<string, Book, List<AuthorMetadata>> ScalarProviderResult(
+            string workId, AuthorMetadata author, Edition edition, List<AuthorMetadata> authors)
+        {
+            var work = new Book
+            {
+                ForeignBookId = workId,
+                TitleSlug = workId.Replace(':', '-').ToLowerInvariant(),
+                AuthorMetadata = author,
+                Editions = new List<Edition> { edition }
+            };
+            return Tuple.Create(author.ForeignAuthorId, work, authors);
+        }
+
+        private static Book RequestScalarFirstBook(string workId, string editionId, string authorId)
+        {
+            var author = new Author
+            {
+                Metadata = new AuthorMetadata { ForeignAuthorId = authorId, Name = "Caller-supplied name" },
+                RootFolderPath = "/library",
+                QualityProfileId = 2,
+                MetadataProfileId = 3,
+                AddOptions = new AddAuthorOptions { EbookQualityProfileId = 5, AudiobookQualityProfileId = 6 }
+            };
+            return new Book { ForeignBookId = workId, ForeignEditionId = editionId, Author = author };
+        }
+
         [Test]
         public void should_keep_exclusions_when_the_book_could_not_be_saved()
         {

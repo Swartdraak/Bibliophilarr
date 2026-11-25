@@ -234,9 +234,9 @@ namespace Bibliophilarr.Api.V1.Books
         }
 
         [RestDeleteById]
-        public void DeleteBook(int id, bool deleteFiles = false, bool addImportListExclusion = false)
+        public void DeleteBook(int id, [FromServices] IRemoveBookFromLibrary bookRemoval, bool deleteFiles = false, bool addImportListExclusion = false)
         {
-            _bookService.DeleteBook(id, deleteFiles, addImportListExclusion);
+            bookRemoval.Remove(id, deleteFiles, addImportListExclusion);
         }
 
         [HttpPut("monitor")]
