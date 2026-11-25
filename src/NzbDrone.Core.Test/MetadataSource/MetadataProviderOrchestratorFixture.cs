@@ -469,10 +469,11 @@ namespace NzbDrone.Core.Test.MetadataSource
             var telemetry = new MetadataProviderTelemetryService();
             var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
 
-            var result = orchestrator.GetAuthorInfo("openlibrary:author:OL23919A", true);
+            const string requestedId = "unscoped-author";
+            var result = orchestrator.GetAuthorInfo(requestedId, true);
 
             result.Should().NotBeNull();
-            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+            result.Metadata.Value.ForeignAuthorId.Should().Be(requestedId);
 
             telemetry.GetOperationSnapshots().Should().ContainSingle(x =>
                 x.ProviderName == "SuccessfulGetAuthorInfo" &&
@@ -501,6 +502,44 @@ namespace NzbDrone.Core.Test.MetadataSource
             result.Should().NotBeNull();
             result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
             incompatible.CallCount.Should().Be(0);
+        }
+
+        [TestCase("hardcover:author:519842")]
+        [TestCase("googlebooks:author:some-author")]
+        public void should_not_dispatch_a_scoped_author_lookup_when_its_provider_is_unavailable(string foreignAuthorId)
+        {
+            var other = new Mock<IMetadataProvider>();
+            other.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            other.SetupGet(provider => provider.SupportsAuthorSearch).Returns(true);
+            var lookups = other.As<IProvideAuthorInfo>();
+            lookups.Setup(provider => provider.GetAuthorInfo(foreignAuthorId, true)).Returns(new Author());
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(new TestRegistry(new[] { other.Object }), telemetry, LogManager.GetCurrentClassLogger());
+
+            var lookup = () => orchestrator.GetAuthorInfo(foreignAuthorId);
+
+            lookup.Should().Throw<AuthorNotFoundException>().Which.IsConfirmedMissing.Should().BeFalse();
+            lookups.Verify(provider => provider.GetAuthorInfo(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+            telemetry.GetOperationSnapshots().Should().BeEmpty();
+            telemetry.HasRecentTransportOutage().Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_dispatch_scoped_series_members_to_an_incompatible_provider()
+        {
+            const string seriesId = "hardcover:series:19";
+            var other = new Mock<IMetadataProvider>();
+            other.SetupGet(provider => provider.ProviderName).Returns("OpenLibrary");
+            other.SetupGet(provider => provider.SupportsSeriesInfo).Returns(true);
+            var lookups = other.As<IProvideSeriesBooks>();
+            lookups.Setup(provider => provider.GetSeriesBooks(seriesId)).Returns(new List<Book> { new Book() });
+            var telemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(new TestRegistry(new[] { other.Object }), telemetry, LogManager.GetCurrentClassLogger());
+
+            orchestrator.GetSeriesBooks(seriesId).Should().BeNull();
+
+            lookups.Verify(provider => provider.GetSeriesBooks(It.IsAny<string>()), Times.Never());
+            telemetry.GetOperationSnapshots().Should().BeEmpty();
         }
 
         [Test]
@@ -930,6 +969,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                 var act = () => orchestrator.GetBookInfo("openlibrary:work:OL45883W");
 
                 act.Should().Throw<NzbDrone.Core.Exceptions.BookNotFoundException>();
+                hardcoverOnly.Attempts.Should().Be(0);
+                telemetry.GetOperationSnapshots().Should().BeEmpty();
                 memoryTarget.Logs.Should().Contain(log => log.Contains("No enabled metadata provider is compatible"));
             }
             finally
@@ -940,6 +981,7 @@ namespace NzbDrone.Core.Test.MetadataSource
 
         private class HardcoverBookInfoProvider : IMetadataProvider, IProvideBookInfo
         {
+            public int Attempts { get; private set; }
             public string ProviderName => "Hardcover";
             public int Priority => 1;
             public bool IsEnabled => true;
@@ -952,6 +994,7 @@ namespace NzbDrone.Core.Test.MetadataSource
             public Tuple<string, Book, List<AuthorMetadata>> GetBookInfo(string id)
             {
                 // Hardcover cannot resolve an openlibrary:work: id.
+                Attempts++;
                 return null;
             }
         }
@@ -1097,19 +1140,18 @@ namespace NzbDrone.Core.Test.MetadataSource
         {
             // A transport failure on the primary must still fall through to the secondary
             // provider; only when ALL providers fail on transport do we throw unavailable.
-            var registry = new TestRegistry(new IMetadataProvider[]
-            {
-                new TransportFailingAuthorInfoProvider(),
-                new SuccessfulGetAuthorInfoProvider()
-            });
+            var primary = new TransportFailingAuthorInfoProvider();
+            var registry = new TestRegistry(new IMetadataProvider[] { primary, new SuccessfulGetAuthorInfoProvider() });
 
             var telemetry = new MetadataProviderTelemetryService();
             var orchestrator = new MetadataProviderOrchestrator(registry, telemetry, LogManager.GetCurrentClassLogger());
 
-            var result = orchestrator.GetAuthorInfo("openlibrary:author:OL23919A", true);
+            const string requestedId = "unscoped-author";
+            var result = orchestrator.GetAuthorInfo(requestedId, true);
 
             result.Should().NotBeNull();
-            result.Metadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL23919A");
+            result.Metadata.Value.ForeignAuthorId.Should().Be(requestedId);
+            primary.Attempts.Should().Be(2);
         }
 
         private class FailingAuthorInfoProvider : IMetadataProvider, IProvideAuthorInfo

@@ -61,6 +61,7 @@ process.
 - Add a selected book to an existing author without resubmitting the author's
   root and monitoring settings.
 - Recognize verified alternate provider IDs for existing authors in Add New.
+- Keep provider-specific lookups with the provider that owns the ID.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art. Recover covers for
   verified Open Library works with generated audiobook editions while retaining
