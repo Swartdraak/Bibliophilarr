@@ -100,6 +100,8 @@ process.
   agrees with the available list and every direct record verifies author credit.
 - Report an incomplete Google Books bibliography with the local author ID,
   provider, page offset, and verified response counts in System Events.
+- Report the failing provider and page counts when a library import is held
+  because a provider's author bibliography ended early.
 - Avoid repeated lookups for the same incomplete author bibliography within a
   library scan. A later scan can retry, and logs report where Open Library
   pagination stopped.

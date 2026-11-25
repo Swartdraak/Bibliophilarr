@@ -603,7 +603,8 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         return null;
                     }
 
-                    var requestedAuthority = decisions.All(decision => decision.Item.IsUnattendedLibraryImport)
+                    var unattended = decisions.All(decision => decision.Item.IsUnattendedLibraryImport);
+                    var requestedAuthority = unattended
                         ? CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, author.ForeignAuthorId, null)
                         : null;
                     if (requestedAuthority != null && unavailableBibliographies.Contains((requestedAuthority.Provider, requestedAuthority.ProviderId)))
@@ -624,8 +625,24 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     }
                     catch (Exception e)
                     {
-                        _logger.Error(e, "Failed to add author {0}", author);
                         var bibliographyUnavailable = e is MetadataProviderUnavailableException { Operation: MetadataProviderOrchestrator.AuthorInfoOperation };
+                        if (unattended && bibliographyUnavailable &&
+                            e is MetadataProviderUnavailableException { AuthorBibliographyProgress: { } progress } incomplete &&
+                            MetadataProviderOrchestrator.InferProviderFromScopedId(incomplete.EntityId) is { } provider)
+                        {
+                            _logger.Error(
+                                "Library import held with {0}: {1} author bibliography ended at offset {2} with {3} distinct entries of {4} reported.",
+                                LibraryImportHoldReason.AuthorBibliographyUnavailable,
+                                provider,
+                                progress.PageOffset,
+                                progress.DistinctEntries,
+                                progress.ReportedTotal);
+                        }
+                        else
+                        {
+                            _logger.Error(e, "Failed to add author {0}", author);
+                        }
+
                         if (bibliographyUnavailable && requestedAuthority != null &&
                             e is MetadataProviderUnavailableException { AuthoritativeBibliographyEndedEarly: true })
                         {

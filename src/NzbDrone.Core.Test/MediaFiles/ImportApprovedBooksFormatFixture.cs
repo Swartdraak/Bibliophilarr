@@ -230,6 +230,60 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_report_incomplete_bibliography_using_the_failed_provider_during_unattended_import(bool unattended)
+        {
+            const string privateAuthor = "Private Fixture Author";
+            const string privateIncomingId = "hardcover:author:123";
+            const string privateErrorId = "openlibrary:author:OL999A";
+            const string privateKey = "private-fixture-provider-key";
+            var messages = new MemoryTarget { Layout = "${message}|${exception:format=ToString}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Error, LogLevel.Error, messages);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(ImportApprovedBooks)));
+
+            GivenAudiobookImport();
+            _author.Id = 0;
+            _author.Name = privateAuthor;
+            _author.ForeignAuthorId = privateIncomingId;
+            var decision = _approvedDecisions.Single();
+            decision.Item.IsUnattendedLibraryImport = unattended;
+            var additions = Mocker.GetMock<IAddAuthorService>();
+            additions.Setup(service => service.AddAuthor(_author, false))
+                .Throws(new MetadataProviderUnavailableException(
+                    "get-author-info",
+                    privateErrorId,
+                    new InvalidOperationException($"Fixture request ({decision.Item.Path}) with {privateKey}"),
+                    authoritativeBibliographyEndedEarly: true,
+                    authorBibliographyProgress: (101, 100, 107)));
+
+            var result = Subject.Import(_approvedDecisions, false).Single();
+
+            var message = messages.Logs.Should().ContainSingle().Which;
+            if (unattended)
+            {
+                message.Should().Be(
+                    "Library import held with AuthorBibliographyUnavailable: OpenLibrary author bibliography ended at offset 101 with 100 distinct entries of 107 reported.|");
+                message.Should().NotContain(privateAuthor).And.NotContain(privateIncomingId).And.NotContain(privateErrorId)
+                    .And.NotContain(privateKey).And.NotContain(decision.Item.Path);
+            }
+            else
+            {
+                message.Should().StartWith("Failed to add author");
+            }
+
+            result.Result.Should().Be(ImportResultType.Rejected);
+            var rejection = decision.Rejections.Should().ContainSingle().Which;
+            rejection.Type.Should().Be(RejectionType.Temporary);
+            rejection.HoldReason.Should().Be(LibraryImportHoldReason.AuthorBibliographyUnavailable);
+            additions.Verify(service => service.AddAuthor(_author, false), Times.Once());
+            Mocker.GetMock<IBookService>().Verify(service => service.AddBook(It.IsAny<Book>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IEditionService>().Verify(service => service.SetMonitored(It.IsAny<Edition>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(service => service.AddMany(It.Is<List<BookFile>>(files => files.Count > 0)), Times.Never());
+        }
+
         [TestCase(true, true, false, 1)]
         [TestCase(true, false, false, 2)]
         [TestCase(false, true, false, 2)]
@@ -271,7 +325,11 @@ namespace NzbDrone.Core.Test.MediaFiles
             var additions = Mocker.GetMock<IAddAuthorService>();
             additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId != independent), false))
                 .Throws(new MetadataProviderUnavailableException(
-                    "get-author-info", "openlibrary:author:OL1A", new InvalidOperationException("Incomplete fixture bibliography"), authoritative));
+                    "get-author-info",
+                    "openlibrary:author:OL1A",
+                    new InvalidOperationException("Incomplete fixture bibliography"),
+                    authoritative,
+                    authorBibliographyProgress: (10, 9, 12)));
             additions.Setup(service => service.AddAuthor(It.Is<Author>(author => author.ForeignAuthorId == independent), false))
                 .Returns(stored);
             Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(It.IsAny<Edition>()))
