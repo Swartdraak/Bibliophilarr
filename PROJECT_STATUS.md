@@ -75,24 +75,39 @@ recovery issue is closed.
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
-- The most recent fresh profile recorded live requests to all four configured
-  providers. The primary scans accounted for all 533 paths across both roots.
-  Of the 75 ebooks, 53 linked to ebook editions and 22 were held. Of the 458
-  audiobook files, 360 linked to audiobook editions and 98 were held. Six
-  ebook holds are byte-identical copies of already linked files. Low matching
-  confidence, unavailable author bibliographies, and duplicates in the same
-  scan were the most frequent audiobook hold reasons. Final catalogue evidence
-  still needs the settled refresh, dual-format ownership, artwork, and restart.
-  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7150948133)
-- The closed replay decoded all 7,586 cached images. Among 414 works with
+- The closed `7dfd3367` replay accounted for all 533 source files. After the
+  matched-only follow-up, 54 of 75 ebooks and 405 of 458 audiobooks linked to
+  the expected format. Signed offline restart preserved the audited catalogue.
+  [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7153619701)
+- The November 25 fresh `f2fe9c81` replay tracked the same 533 paths and linked
+  55 ebooks and 316 audiobooks. Twenty-one works had separately typed file
+  and edition links. The remaining 162 files have recorded hold reasons.
+  The signed offline restart preserved the audited catalogue identities and
+  file ownership. Google Books returned no successful operations, and
+  Hardcover reached its overnight cooldown. The lower audiobook link count
+  and changed work assignments require another replay when providers are
+  available. [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7155977605)
+- Independent browser review verified the legacy Terry Mancour URL, stable
+  author and catalogue routes, separate EPUB and M4B file links, and rendered
+  author, series, and book artwork. The sampled series lacked a description.
+  The replay also found 14 authors with inherited ebook settings on their
+  audiobook profiles. A separate confirmed wrong-work match involved an
+  explicit volume number in the original audiobook title.
+  [Format defaults](https://github.com/Swartdraak/Bibliophilarr/issues/747) ·
+  [Numbered audiobook match](https://github.com/Swartdraak/Bibliophilarr/issues/749)
+- The latest aggregate checked all 330 linked works. There were 197 synopses,
+  276 artwork references, and 89 works with a nonempty local cover cache.
+  Four of 174 series had a description.
+  [Metadata audit](https://github.com/Swartdraak/Bibliophilarr/issues/207)
+- An earlier replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
   missing cached artwork for 692 catalogue works and one author. Completing
   the deferred downloads and improving source coverage remain open.
   [Artwork audit](https://github.com/Swartdraak/Bibliophilarr/issues/207#issuecomment-7128247998)
-- The next promotion follows `develop -> staging` through a pull request.
-  Validate installation, metadata, full-library matching, and release evidence
-  on the consolidated revision.
+- After the release hold is lifted, promote `develop -> staging` through a
+  pull request. Validate installation, metadata, full-library matching, and
+  release evidence on the consolidated revision.
 - `staging -> main` follows staging checks and upgrade and rollback verification.
 
 ## Release and CI posture
