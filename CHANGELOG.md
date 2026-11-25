@@ -89,6 +89,8 @@ process.
   Keep distinct authors with the same name and group verified provider aliases.
 - Keep the synopsis and cover from a verified Open Library work when its
   selected editions omit them.
+- Report saved unmapped-file reasons in the scan summary when a retry retains
+  an earlier hold.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked

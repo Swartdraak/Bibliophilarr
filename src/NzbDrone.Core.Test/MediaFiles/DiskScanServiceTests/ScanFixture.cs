@@ -7,6 +7,9 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
@@ -742,9 +745,18 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                     It.Is<ImportDecisionMakerConfig>(config => config.Filter == filter && config.AddNewAuthors == addNewAuthors)))
                 .Returns(new List<ImportDecision<LocalBook>> { decision });
 
+            var progress = new MemoryTarget { Layout = "${message}" };
+            var logging = new LoggingConfiguration();
+            logging.AddRule(LogLevel.Info, LogLevel.Info, progress);
+            using var logFactory = new LogFactory { Configuration = logging };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(DiskScanService)));
+
             Subject.Execute(new RescanFoldersCommand(new List<string> { _author.Path }, filter, addNewAuthors, null));
 
-            held.UnmappedReason.Should().Be(preserveReason ? priorReason : currentReason);
+            var expectedReason = preserveReason ? priorReason : currentReason;
+            held.UnmappedReason.Should().Be(expectedReason);
+            progress.Logs.Where(message => message.StartsWith("Library scan left ", StringComparison.Ordinal))
+                .Should().Equal($"Library scan left 1 evaluated files unmapped. {expectedReason}=1");
             mediaFiles.Verify(service => service.SetUnmappedReasons(It.Is<List<BookFile>>(files =>
                 preserveReason ? files.Count == 0 : files.Count == 1 && files[0].Id == held.Id && files[0].UnmappedReason == currentReason)),
                 Times.Once());

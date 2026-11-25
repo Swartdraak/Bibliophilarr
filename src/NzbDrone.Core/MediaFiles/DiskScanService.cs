@@ -321,6 +321,21 @@ namespace NzbDrone.Core.MediaFiles
             changedReasons.ForEach(file => file.UnmappedReason = unmappedReasons[file.Path]);
             _mediaFileService.SetUnmappedReasons(changedReasons);
 
+            // Report the retained reasons for evaluated paths rather than just this attempt's decisions.
+            foreach (var file in knownFiles.Where(file => file.EditionId == 0 &&
+                         file.UnmappedReason.HasValue && !ambiguousHeldAudiobookPaths.Contains(file.Path) &&
+                         unmappedReasons.ContainsKey(file.Path)))
+            {
+                unmappedReasons[file.Path] = file.UnmappedReason.Value;
+            }
+
+            if (unmappedReasons.Count > 0)
+            {
+                var counts = unmappedReasons.Values.GroupBy(reason => reason).OrderBy(group => group.Key)
+                    .Select(group => $"{group.Key}={group.Count()}");
+                _logger.ProgressInfo("Library scan left {0} evaluated files unmapped. {1}", unmappedReasons.Count, string.Join(", ", counts));
+            }
+
             _logger.Debug($"Updated info for {updatedFiles.Count} known files");
 
             if (!incompleteScan)
@@ -390,13 +405,6 @@ namespace NzbDrone.Core.MediaFiles
                     "Unmapped library file {0}: {1}",
                     LogSanitizer.Sanitize(decision.Item.Path),
                     reason.IsNullOrWhiteSpace() ? "import did not persist an edition link" : LogSanitizer.Sanitize(reason));
-            }
-
-            if (reasons.Count > 0)
-            {
-                var counts = reasons.Values.GroupBy(reason => reason).OrderBy(group => group.Key)
-                    .Select(group => $"{group.Key}={group.Count()}");
-                _logger.ProgressInfo("Library scan left {0} evaluated files unmapped. {1}", reasons.Count, string.Join(", ", counts));
             }
 
             return reasons;
