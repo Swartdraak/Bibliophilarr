@@ -6,12 +6,15 @@ restore boundaries are enforced:
   * GET /api/v1/system/backup -> 200 list (may be empty on a fresh instance)
   * POST /api/v1/system/backup/restore/{nonexistent} -> 404 (Restore: GetBackup null)
   * POST /api/v1/system/backup/restore/upload with an unsupported media type -> 415
-  * after a graceful restart the persisted DB + config survive (data integrity across
-    a recovery-style relaunch)
+  * capture the signed process and key witness, and create and verify a unique
+    synthetic database tag for the subsequent hard restart check
 Assertions (named booleans only).
 """
 import os
 import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
 
 # EXPLICIT workspace root - NOT derived from __file__. Under onyx_stage_runner the
 # check cwd is 'repo' and sys.path[0] is the script directory, so a __file__-relative
@@ -25,6 +28,7 @@ if not os.path.isfile(COMMON):
 sys.path.insert(0, HARNESS_DIR)
 sys.path.insert(0, '/opt/onyx-testkit')
 import common  # noqa: E402
+import recovery_witness  # noqa: E402
 from onyx_http_check import request_json  # noqa: E402
 
 failures = []
@@ -32,7 +36,7 @@ check = common.make_reporter(failures)
 API = common.api_root()
 
 
-def multipart_post(url, field, filename, content, content_type='application/octet-stream',
+def multipart_post(url, field, filename, content, headers, content_type='application/octet-stream',
                    timeout=30):
     boundary = 'onyxrecovery' + '9f3a7c'
     body = (
@@ -40,14 +44,14 @@ def multipart_post(url, field, filename, content, content_type='application/octe
         f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
         f'Content-Type: {content_type}\r\n\r\n'
     ).encode() + content + f'\r\n--{boundary}--\r\n'.encode()
-    req = __import__('urllib.request', fromlist=['Request']).Request(
+    req = urllib.request.Request(
         url, data=body, method='POST',
-        headers={'Content-Type': f'multipart/form-data; boundary={boundary}'})
-    opener = __import__('urllib.request').build_opener(__import__('urllib.request').ProxyHandler({}))
+        headers={**headers, 'Content-Type': f'multipart/form-data; boundary={boundary}'})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(req, timeout=timeout) as r:
             return r.status
-    except __import__('urllib.error', fromlist=['HTTPError']).HTTPError as e:
+    except urllib.error.HTTPError as e:
         return e.code
     except Exception:
         return 0
@@ -59,6 +63,11 @@ def main():
         check('R0_api_key_available', False, 'no API key')
         common.finish(failures)
     auth = common.auth_headers(api_key)
+    data_dir = Path(common.data_dir()).resolve()
+    start = recovery_witness.signed_process_start(API, auth, data_dir)
+    check('R0_case_process_identified', start is not None)
+    if start is None:
+        common.finish(failures)
 
     # R1 backup listing reachable and is a list
     status, data, ctype = request_json('GET', API + '/system/backup', headers=auth, timeout=30)
@@ -72,15 +81,17 @@ def main():
 
     # R3 restore/upload with unsupported media type -> 415
     bad = multipart_post(API + '/system/backup/restore/upload', 'file', 'evil.txt',
-                         b'not a backup', content_type='text/plain', timeout=30)
+                         b'not a backup', auth, content_type='text/plain', timeout=30)
     check('R3_restore_upload_bad_extension_415', bad == 415, f'status={bad}')
 
-    # R4 data integrity: persisted DB + config present on disk (survives a relaunch)
-    data_dir = common.data_dir()
-    cfg = os.path.join(data_dir, 'config.xml')
-    dbs = [os.path.join(b, f) for b, _, fs in os.walk(data_dir) for f in fs if f.endswith('.db')]
-    check('R4_persisted_db_and_config_present', os.path.isfile(cfg) and len(dbs) >= 1,
-          f'config={os.path.isfile(cfg)} dbs={dbs}')
+    # R4 verify the application database, not the independently created logs database.
+    cfg = (data_dir / 'config.xml').is_file()
+    db = (data_dir / 'bibliophilarr.db').is_file()
+    check('R4_persisted_db_and_config_present', cfg and db, f'config={cfg} database={db}')
+
+    if not failures:
+        recorded = recovery_witness.create(API, auth, api_key, data_dir, start)
+        check('R4_signed_durable_restart_witness_recorded', recorded)
 
     common.finish(failures)
 
