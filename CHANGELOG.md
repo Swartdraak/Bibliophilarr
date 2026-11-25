@@ -42,6 +42,8 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Explain when a Manual Import preview lacks a matching edition in the library
+  and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
 - Keep unavailable edition selections visible in Manual Import and ask the
