@@ -78,6 +78,7 @@ class AddNewBookModalContentConnector extends Component {
   onAddBookPress = (searchForNewBook) => {
     const {
       foreignBookId,
+      isExistingAuthor,
       rootFolderPath,
       monitor,
       monitorNewItems,
@@ -90,6 +91,11 @@ class AddNewBookModalContentConnector extends Component {
       audiobookQualityProfileId,
       tags
     } = this.props;
+
+    if (isExistingAuthor) {
+      this.props.addBook({ foreignBookId, isExistingAuthor, searchForNewBook });
+      return;
+    }
 
     const payload = {
       foreignBookId,

@@ -4,9 +4,9 @@ using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles.BookImport
 {
-    internal static class ImportFormat
+    public static class ImportFormat
     {
-        public static FormatType? ForPath(string path)
+        internal static FormatType? ForPath(string path)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -24,7 +24,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             return !fileFormat.HasValue || !editionFormat.HasValue || fileFormat == editionFormat;
         }
 
-        private static FormatType? ForEdition(Edition edition)
+        public static FormatType? ForEdition(Edition edition, bool requireExplicitFormat = false)
         {
             if (edition == null)
             {
@@ -41,7 +41,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             };
 
             // A missing or generic label with IsEbook=false does not establish audio.
-            return format ?? (edition.IsEbook ? FormatType.Ebook : null);
+            return format ?? (!requireExplicitFormat && edition.IsEbook ? FormatType.Ebook : null);
         }
     }
 }

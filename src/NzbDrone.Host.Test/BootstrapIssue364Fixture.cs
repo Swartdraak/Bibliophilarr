@@ -74,11 +74,22 @@ namespace NzbDrone.App.Test
             });
         }
 
-        [TestCase(null, null, 8811, "127.0.0.1")]
-        [TestCase("8812", "127.0.0.2", 8812, "127.0.0.2")]
+        [TestCase(null, null, null, false, 8811, "127.0.0.1", null)]
+        [TestCase("8812", "127.0.0.2", "127.0.0.1", false, 8812, "127.0.0.2", "127.0.0.2")]
+        [TestCase(null, null, "127.0.0.2", false, 8811, "127.0.0.2", "127.0.0.2")]
+        [TestCase(null, null, "127.0.0.2", true, 8811, "127.0.0.2", "127.0.0.2")]
+        [TestCase(null, "127.0.0.1", "invalid", true, 8811, "127.0.0.1", "127.0.0.1")]
+        [TestCase(null, null, null, true, 8811, "127.0.0.1", null)]
+        [TestCase(null, null, "invalid", false, 8811, null, null)]
         [NonParallelizable]
-        public void should_apply_nested_xml_settings_to_the_listener_with_environment_precedence(
-            string portOverride, string addressOverride, int expectedPort, string expectedAddress)
+        public void should_apply_xml_settings_to_the_listener_with_environment_precedence(
+            string portOverride,
+            string addressOverride,
+            string historicalAddress,
+            bool flatXml,
+            int expectedPort,
+            string expectedAddress,
+            string expectedAddressOption)
         {
             var directory = Directory.CreateTempSubdirectory();
             var variables = new Dictionary<string, string>
@@ -86,6 +97,7 @@ namespace NzbDrone.App.Test
                 ["BIBLIOPHILARR__SERVER__PORT"] = portOverride,
                 ["BIBLIOPHILARR__SERVER__BINDADDRESS"] = addressOverride,
                 ["BIBLIOPHILARR_SERVER__PORT"] = null,
+                ["BIBLIOPHILARR_SERVER__BINDADDRESS"] = historicalAddress,
                 ["PORT"] = null,
                 ["BINDADDRESS"] = null
             };
@@ -100,9 +112,20 @@ namespace NzbDrone.App.Test
                 }
 
                 var configPath = Path.Combine(directory.FullName, "config.xml");
-                File.WriteAllText(configPath, "<Config><Server><Port>8811</Port><BindAddress>127.0.0.1</BindAddress></Server></Config>");
+                const string xmlSettings = "<Port>8811</Port><BindAddress>127.0.0.1</BindAddress>";
+                File.WriteAllText(configPath, flatXml ? $"<Config>{xmlSettings}</Config>" : $"<Config><Server>{xmlSettings}</Server></Config>");
 
                 var config = Bootstrap.GetConfiguration(new StartupContext($"--data={directory.FullName}"));
+                if (expectedAddress == null)
+                {
+                    Assert.Multiple(() =>
+                    {
+                        Assert.Throws<BibliophilarrStartupException>(() => Bootstrap.GetServerBindAddress(config));
+                        Assert.Throws<BibliophilarrStartupException>(() => GetServerOptions(config));
+                    });
+                    return;
+                }
+
                 var port = Bootstrap.GetServerPort(config);
                 var address = Bootstrap.GetServerBindAddress(config);
 
@@ -110,6 +133,7 @@ namespace NzbDrone.App.Test
                 {
                     Assert.That(port, Is.EqualTo(expectedPort));
                     Assert.That(address, Is.EqualTo(expectedAddress));
+                    Assert.That(GetServerOptions(config).BindAddress, Is.EqualTo(expectedAddressOption));
                     Assert.That(Bootstrap.BuildUrl("http", address, port), Is.EqualTo($"http://{expectedAddress}:{expectedPort}"));
                 });
             }

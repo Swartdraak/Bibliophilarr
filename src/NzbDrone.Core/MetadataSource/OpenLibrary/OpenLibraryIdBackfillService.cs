@@ -142,7 +142,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                             if (isbn.IsNotNullOrWhiteSpace())
                             {
                                 lookupsUsed++;
-                                var resolved = _metadataProviderOrchestrator.SearchByIsbn(isbn).FirstOrDefault();
+                                var resolved = _metadataProviderOrchestrator.SearchByIsbn(isbn)?.FirstOrDefault();
 
                                 if (resolved != null)
                                 {

@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using FluentAssertions;
 using FluentValidation;
+using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
+using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.ImportLists.Exclusions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
@@ -62,12 +65,148 @@ namespace NzbDrone.Core.Test.BooksTests
         }
 
         [Test]
+        public void should_keep_exclusions_when_the_book_could_not_be_saved()
+        {
+            var conflict = new NzbDroneClientException(HttpStatusCode.Conflict, "A provider edition is already present in the catalogue.");
+            Mocker.GetMock<IBookService>()
+                .Setup(service => service.AddBook(It.IsAny<Book>(), true))
+                .Throws(conflict);
+
+            Assert.Throws<NzbDroneClientException>(() => Subject.AddBook(RequestBook("OL303M"))).Should().BeSameAs(conflict);
+
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+        }
+
+        [Test]
         public void import_lists_can_still_use_the_default_provider_edition()
         {
             var added = Subject.AddBooks(new List<Book> { RequestBook("OL404M") });
 
             var result = added.Should().ContainSingle().Which;
             result.Editions.Value.Where(edition => edition.Monitored).Should().ContainSingle().Which.Should().BeSameAs(_first);
+        }
+
+        [TestCase("Ebook", true, false)]
+        [TestCase("Audiobook", false, true)]
+        public void should_resolve_the_work_marker_to_the_first_tracked_provider_representative(string format, bool isEbook, bool representativeIsTracked)
+        {
+            _first.Format = "Print";
+            _first.Monitored = !representativeIsTracked;
+            _second.Format = format;
+            _second.IsEbook = isEbook;
+            _second.Monitored = representativeIsTracked;
+            var alternate = new Edition { ForeignEditionId = "OL505M", Format = isEbook ? "Audiobook" : "Ebook", IsEbook = !isEbook };
+            SetupWorkMarkerResult(new List<Edition> { _first, _second, alternate });
+            var request = RequestWorkMarker();
+
+            var result = Subject.AddBook(request);
+
+            result.ForeignBookId.Should().Be("openlibrary:work:OL101W");
+            result.ForeignEditionId.Should().Be(_second.ForeignEditionId);
+            result.AuthorMetadataId.Should().Be(7);
+            result.Editions.Value.Where(edition => edition.Monitored).Should().ContainSingle().Which.Should().BeSameAs(_second);
+            _second.Format.Should().Be(format);
+            _second.ManualAdd.Should().BeTrue();
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Verify(provider => provider.GetBookInfo(WorkId), Times.Once());
+            Mocker.GetMock<IMetadataProviderOrchestrator>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("different work")]
+        [TestCase("different author")]
+        [TestCase("unknown author")]
+        [TestCase("no edition")]
+        [TestCase("print")]
+        [TestCase("unknown format")]
+        [TestCase("format conflicts with ebook flag")]
+        [TestCase("ebook flag without an explicit format")]
+        [TestCase("provider placeholder")]
+        [TestCase("other provider's edition")]
+        [TestCase("unrelated marker")]
+        public void should_reject_an_unverified_work_marker_before_writes(string scenario)
+        {
+            var request = RequestWorkMarker();
+            _second.Format = "Audiobook";
+            var choices = new List<Edition> { _second };
+            var returnedWorkId = "openlibrary:work:OL101W";
+            var returnedAuthorId = AuthorId;
+            switch (scenario)
+            {
+                case "different work":
+                    returnedWorkId = "openlibrary:work:OL999W";
+                    break;
+                case "different author":
+                    returnedAuthorId = "OL999A";
+                    break;
+                case "unknown author":
+                    request.AuthorMetadata = null;
+                    returnedAuthorId = "OL-unknown";
+                    break;
+                case "no edition":
+                    choices.Clear();
+                    break;
+                case "print":
+                    _second.Format = "Print";
+                    break;
+                case "unknown format":
+                    _second.Format = null;
+                    break;
+                case "format conflicts with ebook flag":
+                    _second.IsEbook = true;
+                    break;
+                case "ebook flag without an explicit format":
+                    _second.Format = "Digital Audiobook";
+                    _second.IsEbook = true;
+                    break;
+                case "provider placeholder":
+                    _second.ForeignEditionId = "openlibrary:work:OL101W";
+                    break;
+                case "other provider's edition":
+                    _second.ForeignEditionId = "hardcover:edition:123";
+                    break;
+                case "unrelated marker":
+                    request.ForeignEditionId = request.Editions.Value.Single().ForeignEditionId = "openlibrary:work:OL999W";
+                    break;
+            }
+
+            SetupWorkMarkerResult(choices, returnedWorkId, returnedAuthorId);
+
+            var ex = Assert.Throws<ValidationException>(() => Subject.AddBook(request));
+            ex.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Editions");
+            Mocker.GetMock<IAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+        }
+
+        [Test]
+        public void should_not_treat_a_non_ui_marker_without_matching_scalar_as_a_default()
+        {
+            var request = RequestWorkMarker();
+            request.ForeignEditionId = null;
+            _second.Format = "Audiobook";
+            SetupWorkMarkerResult(new List<Edition> { _second });
+
+            var ex = Assert.Throws<ValidationException>(() => Subject.AddBook(request));
+            ex.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Editions");
+        }
+
+        private void SetupWorkMarkerResult(List<Edition> editions, string workId = "openlibrary:work:OL101W", string authorId = AuthorId)
+        {
+            var owner = new AuthorMetadata { ForeignAuthorId = authorId };
+            var work = new Book { ForeignBookId = workId, AuthorMetadata = owner, Editions = editions };
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(service => service.GetBookInfo(WorkId))
+                .Returns(Tuple.Create(authorId, work, new List<AuthorMetadata> { owner }));
+        }
+
+        private static Book RequestWorkMarker()
+        {
+            const string marker = "openlibrary:work:OL101W";
+            var book = RequestBook(marker);
+            book.ForeignBookId = marker;
+            book.ForeignEditionId = marker;
+            book.AuthorMetadata = new AuthorMetadata { ForeignAuthorId = AuthorId };
+            return book;
         }
 
         private static Book RequestBook(string editionId)

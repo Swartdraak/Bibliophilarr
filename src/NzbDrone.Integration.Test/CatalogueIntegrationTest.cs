@@ -71,7 +71,7 @@ namespace NzbDrone.Integration.Test
             // Wanted filters these fixtures by author monitoring on an otherwise monitored book.
             var author = SeedAuthor(CatalogueAuthor, authorMonitored);
             var database = OpenCatalogue();
-            var books = new BookRepository(database, null);
+            var books = new BookRepository(database, null, new EditionRepository(database, null));
             const string foreignBookId = "test:book:last-day";
             const string foreignEditionId = "test:edition:last-day";
 
