@@ -50,6 +50,12 @@ different location. Confirm the actual path via `GET /api/v1/system/status` → 
 - **LogLevel:** `trace` | `debug` | `info` | `warn` | `error` | `fatal`.
 - **ApiKey:** used for API authentication (see [API key rotation](#api-key-rotation)).
 
+Use `BIBLIOPHILARR__SERVER__PORT` and `BIBLIOPHILARR__SERVER__BINDADDRESS` to
+override the listener. The historical names `BIBLIOPHILARR_SERVER__PORT` and
+`BIBLIOPHILARR_SERVER__BINDADDRESS` are also accepted. When both names are set,
+the canonical setting takes precedence. The historical bind address accepts
+an IP address, `localhost`, or `*`.
+
 > **Note:** Provider-specific settings (e.g. `EnableOpenLibraryProvider`,
 > `EnableHardcoverFallback`, provider priority order) are stored in the database
 > (`ConfigDictionary` table), not in `config.xml`. Query them via
