@@ -22,6 +22,8 @@ process.
 
 - Keep Inventaire work covers out of author portraits when the source supplies
   no author image.
+- Honor Hardcover's recorded rate-limit deadline after restarting the same
+  Bibliophilarr profile while other metadata providers remain available.
 
 - Give the Add Root Folder and individual root folder edit buttons accessible names.
 - Make the Theme setting announce its label and keep keyboard focus while

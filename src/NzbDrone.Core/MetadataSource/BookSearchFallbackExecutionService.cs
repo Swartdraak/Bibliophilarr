@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Common.TPL;
 using NzbDrone.Core.Books;
@@ -76,13 +77,14 @@ namespace NzbDrone.Core.MetadataSource
                                                   IMetadataProviderTelemetryService operationTelemetry,
                                                   IMetadataProviderRegistry providerRegistry,
                                                   ICacheManager cacheManager,
-                                                  Logger logger)
+                                                  Logger logger,
+                                                  IAppFolderInfo appFolderInfo = null)
         {
             _rateLimitService = rateLimitService;
             _providerTelemetryService = providerTelemetryService;
             _operationTelemetry = operationTelemetry;
             _providerRegistry = providerRegistry;
-            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager);
+            _hardcoverRateLimitGate = HardcoverRateLimitGate.Get(cacheManager, appFolderInfo, logger);
             _cooldownStore = cacheManager.GetCache<ConcurrentDictionary<string, DateTime>>(GetType(), "fallbackProviderCooldowns")
                 .Get("fallbackProviderCooldowns", () => new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase));
             _rateLimitWindowStore = cacheManager.GetCache<ConcurrentDictionary<string, RateLimitWindowState>>(GetType(), "fallbackProviderRateLimitWindows")
