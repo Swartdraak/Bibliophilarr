@@ -19,6 +19,7 @@ namespace Bibliophilarr.Api.V1.Author
         public AuthorStatusType Status { get; set; }
 
         public bool Ended => Status == AuthorStatusType.Ended;
+        public bool? HasMetadataRefresh { get; internal set; }
 
         public string AuthorName { get; set; }
         public string AuthorNameLastFirst { get; set; }

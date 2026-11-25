@@ -9,6 +9,8 @@ process.
 
 ### Added
 
+- Show a notice on an author’s Books tab when no metadata refresh has been
+  recorded.
 - Link to the stable release manifest and checksums from Updates when both are
   available for manual verification.
 - Filter Unmapped Files by path or media format and review matching and selected
