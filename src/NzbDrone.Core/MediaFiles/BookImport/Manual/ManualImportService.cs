@@ -132,6 +132,10 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
 
                 var decision = _importDecisionMaker.GetImportDecisions(files, idOverride, null, config);
                 var result = MapItem(decision.First(), downloadId, replaceExistingFiles, false);
+                if (downloadId.IsNullOrWhiteSpace())
+                {
+                    ValidatePreviewMatch(result, author);
+                }
 
                 if (result.Author == null && author != null)
                 {
@@ -207,6 +211,14 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
 
             var allItems = newItems.Concat(existingItems).ToList();
 
+            if (downloadId.IsNullOrWhiteSpace())
+            {
+                foreach (var item in allItems)
+                {
+                    ValidatePreviewMatch(item, author);
+                }
+            }
+
             // Ensure author is set from override when file identification didn't assign one
             if (author != null)
             {
@@ -217,6 +229,42 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Manual
             }
 
             return allItems;
+        }
+
+        private void ValidatePreviewMatch(ManualImportItem item, Author authorOverride)
+        {
+            if (item.Book == null && item.Edition == null)
+            {
+                return;
+            }
+
+            var owner = item.Author ?? authorOverride;
+            var localOwnerMatches = owner is { Id: > 0, AuthorMetadataId: > 0 } &&
+                                    item.Book is { Id: > 0 } && owner.AuthorMetadataId == item.Book.AuthorMetadataId &&
+                                    (authorOverride == null || owner.Id == authorOverride.Id);
+            var edition = item.Edition;
+            if (localOwnerMatches && edition is { Id: 0 } && edition.ForeignEditionId.IsNotNullOrWhiteSpace())
+            {
+                edition = _editionService.GetEditionByForeignEditionId(edition.ForeignEditionId);
+            }
+
+            // The preview and manual import command use the foreign ID to carry the exact edition.
+            if (localOwnerMatches && edition is { Id: > 0 } && edition.BookId == item.Book.Id &&
+                edition.ForeignEditionId.IsNotNullOrWhiteSpace() && ImportFormat.IsCompatible(item.Path, edition))
+            {
+                item.Edition = edition;
+                return;
+            }
+
+            if (!localOwnerMatches)
+            {
+                item.Author = null;
+            }
+
+            item.Book = null;
+            item.Edition = null;
+            item.Rejections = item.Rejections.Append(new Rejection(
+                "No matching edition in the library. Add the book or select a local edition before importing.")).ToList();
         }
 
         public List<ManualImportItem> UpdateItems(List<ManualImportItem> items)
