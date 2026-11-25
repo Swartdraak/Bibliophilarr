@@ -296,8 +296,10 @@ namespace NzbDrone.Core.Test.MediaFiles
         [TestCase(true, false, false, 2)]
         [TestCase(false, true, false, 2)]
         [TestCase(true, true, true, 1)]
+        [TestCase(true, false, false, 1, true)]
+        [TestCase(true, false, true, 1, true)]
         public void should_hold_repeat_authoritative_bibliography_failures_only_for_the_same_unattended_source_in_one_batch(
-            bool unattended, bool authoritative, bool becameKnown, int expectedAttempts)
+            bool unattended, bool authoritative, bool becameKnown, int expectedAttempts, bool missingTitle = false)
         {
             const string incoming = "hardcover:author:123";
             const string equivalentIncoming = "hardcover:author:000123";
@@ -334,10 +336,11 @@ namespace NzbDrone.Core.Test.MediaFiles
             additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId != independent))
                 .Throws(new MetadataProviderUnavailableException(
                     "get-author-info",
-                    "openlibrary:author:OL1A",
+                    missingTitle ? incoming : "openlibrary:author:OL1A",
                     new InvalidOperationException("Incomplete fixture bibliography"),
                     authoritative,
-                    authorBibliographyProgress: (10, 9, 12)));
+                    authorBibliographyProgress: missingTitle ? null : (10, 9, 12),
+                    authoritativeBibliographyMissingWorkTitle: missingTitle));
             additions.Setup(AuthorAddition(unattended, author => author.ForeignAuthorId == independent))
                 .Returns(stored);
             Mocker.GetMock<IEditionService>().Setup(service => service.SetMonitored(It.IsAny<Edition>()))

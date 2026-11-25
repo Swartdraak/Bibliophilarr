@@ -655,7 +655,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         }
 
                         if (bibliographyUnavailable && requestedAuthority != null &&
-                            e is MetadataProviderUnavailableException { AuthoritativeBibliographyEndedEarly: true })
+                            e is MetadataProviderUnavailableException { AuthoritativeBibliographyIncomplete: true })
                         {
                             // Canonicalization may be checking an incumbent from a different provider.
                             unavailableBibliographies.Add((requestedAuthority.Provider, requestedAuthority.ProviderId));
