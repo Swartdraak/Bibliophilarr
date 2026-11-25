@@ -21,6 +21,23 @@ namespace NzbDrone.Core.Test.MediaCoverTests
     [TestFixture]
     public class RecoverOpenLibraryBookCoverCacheFixture : CoreTest<MediaCoverService>
     {
+        [Test]
+        public void should_defer_cover_recovery_when_receiving_the_body_times_out()
+        {
+            const string coverUrl = "https://covers.openlibrary.org/b/id/41-L.jpg";
+            var suffix = OpenLibraryMissingBookCover.GetRetryFileSuffix("openlibrary:work:OL41W", "OL-work-OL41W", coverUrl);
+            var transport = new WebException("Fixture body deadline", new OperationCanceledException(), WebExceptionStatus.ReceiveFailure, null);
+            Mocker.GetMock<IAppFolderInfo>().SetupGet(folders => folders.AppDataFolder).Returns(TempFolder);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>())).Throws(transport);
+
+            var cache = (IOpenLibraryBookCoverCache)Subject;
+
+            cache.TryRecover(4, coverUrl, suffix, () => true, TimeSpan.FromSeconds(5))
+                .Should().Be(OpenLibraryCoverRecovery.DeferredAfterRequest);
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void should_keep_only_the_current_nonempty_retry_file_after_an_author_refresh_without_network(bool populated)

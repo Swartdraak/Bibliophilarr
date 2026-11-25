@@ -20,6 +20,8 @@ process.
 
 ### Fixed
 
+- Retry Open Library artwork on the normal scan cycle after a temporary
+  transport timeout.
 - Preserve stored author format paths when editing profile settings. Changing a
   format's root or quality profile alone no longer changes book monitoring.
 - Keep the selected ebook or audiobook root in Edit Author while root folders

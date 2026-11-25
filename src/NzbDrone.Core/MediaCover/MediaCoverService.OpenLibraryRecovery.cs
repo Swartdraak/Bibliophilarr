@@ -97,6 +97,12 @@ namespace NzbDrone.Core.MediaCover
                     ? OpenLibraryCoverRecovery.DeferredAfterRequest
                     : OpenLibraryCoverRecovery.Unavailable;
             }
+            catch (WebException e) when (e.Status == WebExceptionStatus.Timeout ||
+                e is { Status: WebExceptionStatus.ReceiveFailure, InnerException: OperationCanceledException })
+            {
+                _logger.Debug("Open Library cover recovery timed out for book {0} ({1}).", bookId, e.Status);
+                return OpenLibraryCoverRecovery.DeferredAfterRequest;
+            }
             catch (Exception e) when (e is WebException or IOException or ImageFormatException)
             {
                 _logger.Debug("Open Library cover recovery did not complete for book {0} ({1}).", bookId, e.GetType().Name);
