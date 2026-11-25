@@ -437,10 +437,11 @@ namespace NzbDrone.Core.MediaFiles
             IEnumerable<IFileInfo> filesOnDisk;
 
             var rootFolder = _rootFolderService.GetBestRootFolder(path);
+            var logPath = LogSanitizer.Sanitize(path);
 
             if (rootFolder != null && rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null)
             {
-                _logger.Info("Getting book list from Calibre for {0}", LogSanitizer.Sanitize(path));
+                _logger.Info("Getting book list from Calibre for {0}", logPath);
                 var paths = _calibre.GetAllBookFilePaths(rootFolder.CalibreSettings);
                 var folderPaths = paths.Where(x => path.IsParentPath(x));
 
@@ -448,17 +449,17 @@ namespace NzbDrone.Core.MediaFiles
             }
             else
             {
-                _logger.Debug("Scanning '{0}' for supported media files", LogSanitizer.Sanitize(path));
+                _logger.Debug("Scanning '{0}' for supported media files", logPath);
 
                 filesOnDisk = _diskProvider.GetFileInfos(path, allDirectories, ignoreInaccessible);
 
-                _logger.Trace("{0} files were found in {1}", filesOnDisk.Count(), path);
+                _logger.Trace("{0} files were found in {1}", filesOnDisk.Count(), logPath);
             }
 
             var mediaFileList = filesOnDisk.Where(file => MediaFileExtensions.AllExtensions.Contains(file.Extension))
                 .ToArray();
 
-            _logger.Debug("{0} book files were found in {1}", mediaFileList.Length, path);
+            _logger.Debug("{0} book files were found in {1}", mediaFileList.Length, logPath);
 
             return mediaFileList;
         }

@@ -599,12 +599,15 @@ process.
 
 ### Security
 
+- Restrict URL base redirects to local paths while preserving the request
+  method and query.
 - Normalize request method and client information before writing HTTP logs.
 
 - Accept only absolute HTTP and HTTPS artwork URLs in the cover proxy.
 - Require an API credential for versioned API writes and protect Forms
   sign-in and sign-out with browser verification tokens.
-- Keep Calibre connection settings and library lookup terms out of scan logs.
+- Keep library file discovery paths on one line and omit Calibre connection
+  settings and library lookup terms from scan logs.
 - Log operation and status for Hardcover book and series searches and Open
   Library ISBN lookups without recording raw queries or provider errors.
 - Sanitize book identifiers and titles in Add Book and import-list logs.
