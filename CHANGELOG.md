@@ -18,8 +18,8 @@ process.
 
 ### Fixed
 
-- Give each Book Posters cover link an accessible name, including when artwork
-  is available or a legacy title is blank.
+- Give each cover link in Books Posters and Overview an accessible name,
+  including when artwork is available or a legacy title is blank.
 
 - Report catalogue checks, import rules, and saving scan results as separate
   stages. Count releases after their matching work has finished.
