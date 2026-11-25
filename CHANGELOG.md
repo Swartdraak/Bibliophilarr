@@ -20,6 +20,8 @@ process.
 
 ### Fixed
 
+- Make the Theme setting announce its label and keep keyboard focus while
+  selecting or dismissing its options.
 - Remove temporary upload and extraction files after each backup restore attempt.
 - Explain how to select a local book and edition in Manual Import when book
   metadata lookup is unconfigured.
