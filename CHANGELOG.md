@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Show already cached artwork in the main Books view when the only stored cover
+  belongs to another edition of the same work.
 - Keep Inventaire work covers out of author portraits when the source supplies
   no author image.
 - Honor Hardcover's recorded rate-limit deadline after restarting the same

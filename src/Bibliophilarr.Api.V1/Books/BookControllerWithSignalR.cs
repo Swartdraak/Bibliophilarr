@@ -73,7 +73,7 @@ namespace Bibliophilarr.Api.V1.Books
             return resource;
         }
 
-        protected List<BookResource> MapToResource(List<Book> books, bool includeAuthor)
+        protected List<BookResource> MapToResource(List<Book> books, bool includeAuthor, ILookup<int, Edition> artworkEditions = null)
         {
             var seriesLinks = _seriesBookLinkService.GetLinksByBook(books.Select(x => x.Id).ToList())
                 .GroupBy(x => x.BookId)
@@ -115,7 +115,13 @@ namespace Bibliophilarr.Api.V1.Books
             {
                 var resource = result[i];
                 EnrichFormatStatuses(books[i], resource, profilesByAuthor[resource.AuthorId], profileNames);
+
                 MapCoversToLocal(books[i], resource);
+                if (artworkEditions?.Contains(resource.Id) == true &&
+                    _coverMapper.GetCachedBookCover(books[i], artworkEditions[resource.Id].ToList()) is { } cover)
+                {
+                    resource.Images.Add(cover);
+                }
             }
 
             var authorStats = _authorStatisticsService.AuthorStatistics();

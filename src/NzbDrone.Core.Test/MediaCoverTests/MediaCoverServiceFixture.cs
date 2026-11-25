@@ -95,6 +95,50 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             image.Extension.Should().Be(".jpg");
         }
 
+        [TestCase(512, false, true)]
+        [TestCase(0, false, false)]
+        [TestCase(512, true, false)]
+        public void should_offer_saved_same_work_art_only_when_cached_and_unambiguous(int size, bool competingCover, bool expected)
+        {
+            const string url = "https://covers.example/work.jpg";
+            var image = new MediaCover.MediaCover(MediaCoverTypes.Cover, url);
+            var source = new Edition { BookId = _book.Id, Images = new List<MediaCover.MediaCover> { image } };
+            var editions = new List<Edition> { _edition, source };
+            if (competingCover)
+            {
+                editions.Add(new Edition
+                {
+                    BookId = _book.Id,
+                    Images = new List<MediaCover.MediaCover>
+                    {
+                        new MediaCover.MediaCover(MediaCoverTypes.Cover, "https://covers.example/another.jpg")
+                    }
+                });
+            }
+
+            var path = Subject.GetCoverPath(_book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg");
+            var disk = Mocker.GetMock<IDiskProvider>();
+            disk.Setup(provider => provider.FileExists(path)).Returns(true);
+            disk.Setup(provider => provider.GetFileSize(path)).Returns(size);
+            disk.Setup(provider => provider.FileGetLastWrite(path)).Returns(new DateTime(1234));
+
+            var result = Subject.GetCachedBookCover(_book, editions);
+
+            if (expected)
+            {
+                result.Url.Should().Be($"/MediaCover/Books/{_book.Id}/cover.jpg?lastWrite=1234");
+                result.RemoteUrl.Should().Be(url);
+            }
+            else
+            {
+                result.Should().BeNull();
+            }
+
+            image.Url.Should().Be(url);
+            Mocker.GetMock<IMediaCoverProxy>().VerifyNoOtherCalls();
+            Mocker.GetMock<IHttpClient>().VerifyNoOtherCalls();
+        }
+
         [TestCase(HttpStatusCode.TooManyRequests, false)]
         [TestCase(HttpStatusCode.ServiceUnavailable, true)]
         public void should_honor_a_longer_retry_after_without_adding_an_artwork_request(HttpStatusCode status, bool bodyFailure)

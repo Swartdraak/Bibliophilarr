@@ -143,9 +143,14 @@ namespace NzbDrone.Core.MediaCover
 
         public void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images)
         {
+            MapRecoveredBookCover(book, images, book.Editions?.Value);
+        }
+
+        private void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images, IList<Edition> artworkEditions)
+        {
             // The normal mapper has already kept the stored URL as RemoteUrl.
             var image = images?.FirstOrDefault(cover => cover?.CoverType == MediaCoverTypes.Cover);
-            if (book.Id <= 0 || OpenLibraryMissingBookCover.SelectArtwork(book, book.Editions?.Value) is not { } artwork ||
+            if (book.Id <= 0 || OpenLibraryMissingBookCover.SelectArtwork(book, artworkEditions) is not { } artwork ||
                 image?.RemoteUrl != artwork.CoverUrl ||
                 (artwork.WorkSourceId != null && (image.SourceProvider != "OpenLibrary" || image.SourceId != artwork.WorkSourceId)) ||
                 HasCachedCover(GetCoverPath(book.Id, MediaCoverEntity.Book, MediaCoverTypes.Cover, ".jpg")))

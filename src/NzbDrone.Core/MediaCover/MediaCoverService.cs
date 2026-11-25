@@ -26,6 +26,8 @@ namespace NzbDrone.Core.MediaCover
         void EnsureBookCovers(Book book);
         void MapRecoveredBookCover(Book book, IEnumerable<MediaCover> images);
         void MapRecoveredAuthorPortrait(Author author, IEnumerable<MediaCover> images);
+        bool HasBookCoverFolder(int bookId);
+        MediaCover GetCachedBookCover(Book book, IList<Edition> editions);
     }
 
     public partial class MediaCoverService :
@@ -142,6 +144,34 @@ namespace NzbDrone.Core.MediaCover
             }
 
             return Path.Combine(GetAuthorCoverPath(entityId), coverType.ToString().ToLower() + heightSuffix + GetExtension(coverType, extension));
+        }
+
+        public bool HasBookCoverFolder(int bookId) => bookId > 0 && _diskProvider.FolderExists(GetBookCoverPath(bookId));
+
+        public MediaCover GetCachedBookCover(Book book, IList<Edition> editions)
+        {
+            var covers = editions.GetBookImages().Where(image => image.CoverType == MediaCoverTypes.Cover).Take(2).ToList();
+            if (book.Id <= 0 || covers.Count != 1 ||
+                !Uri.TryCreate(covers[0].Url, UriKind.Absolute, out var url) ||
+                (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
+            {
+                return null;
+            }
+
+            var cover = covers[0].JsonClone();
+            cover.RemoteUrl = cover.Url;
+            cover.Url = null;
+            var path = GetCoverPath(book.Id, MediaCoverEntity.Book, cover.CoverType, cover.Extension);
+            if (GetCachedCoverLastWrite(path) is { } lastWrite)
+            {
+                cover.Url = LocalCoverUrl(book.Id, MediaCoverEntity.Book, cover.CoverType, cover.Extension, lastWrite);
+            }
+            else
+            {
+                MapRecoveredBookCover(book, new[] { cover }, editions);
+            }
+
+            return cover.Url == null ? null : cover;
         }
 
         public void ConvertToLocalUrls(int entityId, MediaCoverEntity coverEntity, IEnumerable<MediaCover> covers)
