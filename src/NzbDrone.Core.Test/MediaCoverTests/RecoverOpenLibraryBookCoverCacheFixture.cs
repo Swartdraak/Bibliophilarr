@@ -107,6 +107,7 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             {
                 File.ReadAllText(current).Should().Be("current artwork");
             }
+
             File.Exists(stale).Should().BeFalse();
             File.ReadAllText(normal).Should().Be("existing normal artwork");
             http.Verify(client => client.Get(It.Is<HttpRequest>(request => request.Headers["Range"] == "bytes=0-0")), Times.Once);
