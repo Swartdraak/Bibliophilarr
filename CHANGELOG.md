@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Save a new book and its editions together. If an edition already belongs to
+  another book, keep the existing data and import exclusions.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
@@ -42,6 +44,8 @@ process.
   including queue, backup, and system operations.
 - Report queued manual imports as unsuccessful when they neither import a file
   nor preserve an existing one. Summarize recognized format and file errors.
+- Explain when a Manual Import preview lacks a matching edition in the library
+  and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
 - Hold an unresolved manual-import edition selection and continue importing

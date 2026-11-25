@@ -108,13 +108,12 @@ namespace NzbDrone.Core.Books
                 dbAuthor = _addAuthorService.AddAuthorWithMetadata(author, book.AuthorMetadata.Value, false);
             }
 
-            // Remove any import list exclusions preventing addition
-            _importListExclusionService.Delete(book.ForeignBookId);
-            _importListExclusionService.Delete(book.AuthorMetadata.Value.ForeignAuthorId);
-
             book.Author = dbAuthor;
             book.AuthorMetadataId = dbAuthor.AuthorMetadataId;
             _bookService.AddBook(book, doRefresh);
+
+            _importListExclusionService.Delete(book.ForeignBookId);
+            _importListExclusionService.Delete(book.AuthorMetadata.Value.ForeignAuthorId);
 
             return book;
         }
