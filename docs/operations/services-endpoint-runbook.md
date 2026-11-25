@@ -118,11 +118,13 @@ have its own controls.
 
 Selecting the button sends a single unauthenticated read request to the
 official repository’s GitHub Releases API. The result compares the installed
-version with the latest stable release and links to its release notes. If
-GitHub is unreachable or returns an invalid response, the page reports that
-the check could not be completed. This path has no schedule and never queues
-an installation. Use the deployment’s normal update mechanism and make a
-recoverable backup before upgrading.
+version with the latest stable release and links to its release notes. If a
+newer stable release has both the [release manifest](RELEASE_MANIFEST.md) and
+checksum file uploaded, the page links to those files for manual compatibility
+and integrity checks. If GitHub is unreachable or returns an invalid
+response, the page reports that the check could not be completed. This path has
+no schedule and never queues an installation. Use the deployment’s normal
+update mechanism and make a recoverable backup before upgrading.
 
 Automatic installation defaults to off on every platform. An explicit
 automatic-update setting in `config.xml` remains in effect, and

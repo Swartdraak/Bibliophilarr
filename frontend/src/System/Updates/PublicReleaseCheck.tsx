@@ -15,6 +15,8 @@ interface ReleaseCheckResult {
   status: 'disabled' | 'unavailable' | 'upToDate' | 'available';
   latestVersion?: string;
   releaseNotesUrl?: string;
+  releaseManifestUrl?: string;
+  checksumsUrl?: string;
 }
 
 function PublicReleaseCheck({
@@ -72,14 +74,34 @@ function PublicReleaseCheck({
               ? translate('PublicUpdateUpToDate')
               : null}
             {result?.status === 'available' ? (
-              <p>
-                {translate('PublicUpdateAvailable', {
-                  version: result.latestVersion ?? '',
-                })}{' '}
-                <Link to={result.releaseNotesUrl}>
-                  {translate('ReleaseNotes')}
-                </Link>
-              </p>
+              <>
+                <p>
+                  {translate('PublicUpdateAvailable', {
+                    version: result.latestVersion ?? '',
+                  })}{' '}
+                  <Link to={result.releaseNotesUrl}>
+                    {translate('ReleaseNotes')}
+                  </Link>
+                </p>
+
+                {result.releaseManifestUrl && result.checksumsUrl ? (
+                  <>
+                    <p>{translate('PublicUpdateManualGuidance')}</p>
+                    <ul>
+                      <li>
+                        <Link to={result.releaseManifestUrl}>
+                          {translate('PublicUpdateReleaseManifest')}
+                        </Link>
+                      </li>
+                      <li>
+                        <Link to={result.checksumsUrl}>
+                          {translate('PublicUpdateChecksums')}
+                        </Link>
+                      </li>
+                    </ul>
+                  </>
+                ) : null}
+              </>
             ) : null}
           </div>
         </>
