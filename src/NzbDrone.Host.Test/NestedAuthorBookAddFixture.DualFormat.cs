@@ -243,6 +243,8 @@ namespace NzbDrone.Host.Test
                         if (removal == "second-file-error")
                         {
                             Directory.CreateDirectory(blockedDestination);
+                            var authorBefore = await Get(client, $"author/{authorId}", token);
+                            authorBefore.GetProperty("statistics").GetProperty("bookFileCount").GetInt32().Should().Be(2);
                         }
 
                         var config = restarted.Services.GetRequiredService<IConfigService>();
@@ -271,6 +273,8 @@ namespace NzbDrone.Host.Test
                                 var firstFile = imported.MinBy(file => file.FileId);
                                 using var retainedBook = await client.GetAsync($"book/{bookId}", token);
                                 retainedBook.StatusCode.Should().Be(HttpStatusCode.OK);
+                                var authorAfter = await Get(client, $"author/{authorId}", token);
+                                authorAfter.GetProperty("statistics").GetProperty("bookFileCount").GetInt32().Should().Be(1);
                                 using var removedFile = await client.GetAsync($"bookfile/{firstFile.FileId}", token);
                                 removedFile.StatusCode.Should().Be(HttpStatusCode.NotFound);
                                 using var retainedFile = await client.GetAsync($"bookfile/{secondFile.FileId}", token);

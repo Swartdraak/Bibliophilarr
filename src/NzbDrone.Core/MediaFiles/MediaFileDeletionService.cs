@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Abstractions;
 using System.Linq;
 using System.Net;
 using NLog;
@@ -144,11 +145,12 @@ namespace NzbDrone.Core.MediaFiles
             foreach (var target in targets.Where(target => !target.Root.IsCalibreLibrary))
             {
                 var root = ConfirmFileUnchanged(bookId, target.File, target.Root);
-                if (_diskProvider.FileExists(target.File.Path))
+                if (!_diskProvider.FileExists(target.File.Path))
                 {
-                    DeleteFile(target.File, rootFolder: root);
+                    throw MissingBookFile();
                 }
 
+                DeleteFile(target.File, rootFolder: root);
                 RemoveDeletedFileRecord(target.File);
             }
 
@@ -172,7 +174,8 @@ namespace NzbDrone.Core.MediaFiles
 
         private RootFolder GetBookFileRoot(string path)
         {
-            var root = !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path)
+            var root = !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path) &&
+                       !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part is "." or "..")
                 ? _rootFolderService.GetBestRootFolder(path)
                 : null;
             if (root == null || !root.Path.IsParentPath(path) || !_diskProvider.FolderExists(root.Path))
@@ -180,7 +183,21 @@ namespace NzbDrone.Core.MediaFiles
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file is outside an available registered root. Refresh before trying again.");
             }
 
+            // Explicitly configured aliases are allowed. Reject links encountered below that root.
+            for (var parent = Path.GetDirectoryName(path); !parent.PathEquals(root.Path); parent = Path.GetDirectoryName(parent))
+            {
+                RejectLinkedBookPath(_diskProvider.GetDirectoryInfo(parent));
+            }
+
             return root;
+        }
+
+        private static void RejectLinkedBookPath(IFileSystemInfo path)
+        {
+            if (path.LinkTarget != null || (path.Exists && (path.Attributes & FileAttributes.ReparsePoint) != 0))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file or its parent is linked below the registered root. Review the file location before trying again.");
+            }
         }
 
         private RootFolder ConfirmFileUnchanged(int bookId, BookFile file, RootFolder expectedRoot)
@@ -197,12 +214,23 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var onDisk = _diskProvider.GetFileInfo(file.Path);
+            RejectLinkedBookPath(onDisk);
+            if (!root.IsCalibreLibrary && !onDisk.Exists)
+            {
+                throw MissingBookFile();
+            }
+
             if (onDisk.Exists && (onDisk.Length != file.Size || Math.Abs((onDisk.LastWriteTimeUtc - file.Modified).TotalSeconds) > 1))
             {
                 throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file on disk changed. Rescan it before trying again.");
             }
 
             return root;
+        }
+
+        private static NzbDroneClientException MissingBookFile()
+        {
+            return new NzbDroneClientException(HttpStatusCode.Conflict, "A tracked book file is unavailable. Restore access or rescan the library before trying again.");
         }
 
         private static bool SameCalibreLibrary(CalibreSettings current, CalibreSettings expected)

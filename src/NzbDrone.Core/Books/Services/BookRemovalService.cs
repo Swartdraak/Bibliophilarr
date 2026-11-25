@@ -39,10 +39,19 @@ namespace NzbDrone.Core.Books
 
             var book = _bookRepository.Get(bookId);
             book.Author.LazyLoad();
-            _deleteMediaFiles.DeleteFilesForExplicitBookRemoval(bookId);
-            if (!_bookRepository.DeleteIfNoLinkedFiles(bookId))
+            try
             {
-                throw new NzbDroneClientException(HttpStatusCode.Conflict, "The book or its files changed during deletion. Refresh before trying again.");
+                _deleteMediaFiles.DeleteFilesForExplicitBookRemoval(bookId);
+                if (!_bookRepository.DeleteIfNoLinkedFiles(bookId))
+                {
+                    throw new NzbDroneClientException(HttpStatusCode.Conflict, "The book or its files changed during deletion. Refresh before trying again.");
+                }
+            }
+            catch
+            {
+                // Earlier files may have been removed before a later one failed.
+                _eventAggregator.PublishEvent(new BookUpdatedEvent(book));
+                throw;
             }
 
             _eventAggregator.PublishEvent(new BookDeletedEvent(book, true, addImportListExclusion, mediaAlreadyRemoved: true));
