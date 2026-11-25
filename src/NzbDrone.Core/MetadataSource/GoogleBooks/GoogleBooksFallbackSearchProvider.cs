@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -355,7 +356,7 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 HttpResponse<GoogleBooksSearchResponse> httpResponse;
                 try
                 {
-                    httpResponse = GetVolumeResponse<GoogleBooksSearchResponse>(httpRequest);
+                    httpResponse = GetVolumeResponse<GoogleBooksSearchResponse>(httpRequest, holdOnServerError: reportRateLimit);
                 }
                 catch (Exception ex) when (ex is TooManyRequestsException or GoogleBooksRequestOnCooldownException or GoogleBooksServerErrorException)
                 {
@@ -458,13 +459,13 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 : new InvalidOperationException("Google Books response could not be decoded.");
         }
 
-        private HttpResponse<T> GetVolumeResponse<T>(HttpRequest request, bool allowNotFound = false)
+        private HttpResponse<T> GetVolumeResponse<T>(HttpRequest request, bool allowNotFound = false, bool holdOnServerError = false)
             where T : new()
         {
             HttpResponse response;
 
             // Keep the admission check and dispatch under the same provider gate. The HTTP
-            // rate wait is inside Get, so requests behind a 429 recheck before reaching it.
+            // rate wait is inside Get, so requests behind a provider hold recheck before reaching it.
             lock (_requestState)
             {
                 if (_requestState.CooldownUntilUtc > _requestState.UtcNow)
@@ -479,11 +480,32 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                     _requestState.CooldownUntilUtc = _requestState.UtcNow.Add(BookSearchFallbackExecutionService.GetRateLimitCooldown(failure.RetryAfter));
                     throw failure;
                 }
-            }
 
-            if (response?.HasHttpServerError == true)
-            {
-                throw new GoogleBooksServerErrorException(response.StatusCode);
+                if (response?.HasHttpServerError == true)
+                {
+                    if (holdOnServerError)
+                    {
+                        var now = _requestState.UtcNow;
+                        var cooldown = BookSearchFallbackExecutionService.ServerErrorCooldown;
+                        if (response.StatusCode == HttpStatusCode.ServiceUnavailable &&
+                            RetryConditionHeaderValue.TryParse(response.Headers["Retry-After"], out var retryAfter))
+                        {
+                            var delay = retryAfter.Delta ?? (retryAfter.Date.GetValueOrDefault().UtcDateTime - now);
+                            if (delay > cooldown)
+                            {
+                                cooldown = BookSearchFallbackExecutionService.GetRateLimitCooldown(delay);
+                            }
+                        }
+
+                        var until = now.Add(cooldown);
+                        if (until > _requestState.CooldownUntilUtc)
+                        {
+                            _requestState.CooldownUntilUtc = until;
+                        }
+                    }
+
+                    throw new GoogleBooksServerErrorException(response.StatusCode);
+                }
             }
 
             if (response == null || (allowNotFound && response.StatusCode == HttpStatusCode.NotFound))
