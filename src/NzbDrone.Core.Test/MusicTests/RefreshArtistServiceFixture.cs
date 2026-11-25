@@ -728,6 +728,46 @@ namespace NzbDrone.Core.Test.MusicTests
             VerifyEventPublished<AuthorRefreshCompleteEvent>();
         }
 
+        [TestCase(false, "available")]
+        [TestCase(true, "available")]
+        [TestCase(false, "unavailable")]
+        [TestCase(true, "unavailable")]
+        [TestCase(false, "no-recent-run")]
+        [TestCase(true, "no-recent-run")]
+        public void should_attempt_first_scheduled_refresh_and_skip_unchanged_recently_synced_author(bool legacyEmptySync, string differential)
+        {
+            var now = DateTime.UtcNow;
+            _author.ForeignAuthorId = "openlibrary:author:OL9001A";
+            _author.Metadata.Value.Status = AuthorStatusType.Ended;
+            _author.LastInfoSync = legacyEmptySync ? DateTime.MinValue : null;
+            var refreshed = new Author
+            {
+                Id = _author.Id + 1,
+                ForeignAuthorId = "openlibrary:author:OL9002A",
+                LastInfoSync = now
+            };
+
+            Mocker.GetMock<IAuthorService>().Setup(x => x.GetAllAuthors()).Returns(new List<Author> { _author, refreshed });
+            Mocker.GetMock<IBookService>().Setup(x => x.GetBooksByAuthor(_author.Id)).Returns(new List<Book>());
+            Mocker.SetConstant<ICheckIfAuthorShouldBeRefreshed>(Mocker.Resolve<ShouldRefreshAuthor>());
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            var lastStart = now.AddDays(-1);
+            orchestrator.Setup(x => x.GetChangedAuthors(lastStart))
+                .Returns(differential == "available" ? new HashSet<string>() : null);
+            orchestrator.Setup(x => x.GetAuthorInfo(_author.ForeignAuthorId, true)).Returns((Author)null);
+
+            Subject.Execute(new RefreshAuthorCommand
+            {
+                Trigger = CommandTrigger.Scheduled,
+                LastExecutionTime = differential == "no-recent-run" ? null : lastStart.AddMinutes(1),
+                LastStartTime = lastStart
+            });
+
+            orchestrator.Verify(x => x.GetChangedAuthors(lastStart), differential == "no-recent-run" ? Times.Never() : Times.Once());
+            orchestrator.Verify(x => x.GetAuthorInfo(_author.ForeignAuthorId, true), Times.Once());
+            orchestrator.Verify(x => x.GetAuthorInfo(refreshed.ForeignAuthorId, It.IsAny<bool>()), Times.Never());
+        }
+
         [Test]
         public void should_not_queue_duplicate_rescan_when_matching_rescan_is_already_queued()
         {

@@ -68,6 +68,15 @@ namespace NzbDrone.Core.Test.MusicTests
         }
 
         [Test]
+        public void should_refresh_an_author_with_no_recorded_sync_and_no_recent_books()
+        {
+            GivenAuthorIsEnded();
+            _author.LastInfoSync = null;
+
+            Subject.ShouldRefresh(_author).Should().BeTrue();
+        }
+
+        [Test]
         public void should_return_true_if_running_author_last_refreshed_more_than_24_hours_ago()
         {
             GivenAuthorLastRefreshedThreeDaysAgo();
