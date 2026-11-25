@@ -32,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         // while preventing false positives from badly tagged files.
         private const double AutoAddAuthorDistanceThreshold = 0.25;
         private const string MissingNumberedVolumeDetail = "The catalogue match omits the numbered volume in the file title. Select the intended work manually.";
+        private const string MissingAuthoredAudioPartDetail = "The catalogue match omits the numbered part in the corroborated audiobook title. Select the intended work manually.";
 
         private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);
@@ -39,6 +40,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static readonly Regex TrackTitleSuffix = new Regex(@"(?:^|[\s:,(–—-]+)(?:CHAPTERS?|DISCS?|PARTS?|TRACKS?)\s*[-#]?\s*[0-9]+(?:\s*[/–-]\s*[0-9]+)?\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex MultipartTrackTitle = new Regex(@"^(?:CHAPTERS?|DIS[CK]S?|PARTS?|TRACKS?)\b", RegexOptions.CultureInvariant);
         private static readonly Regex OmnibusBookRange = new Regex(@"(\bOMNIBUS\s+BOOKS?\s+[0-9]+)\s*[-–—]\s*([0-9]+)\b", RegexOptions.CultureInvariant);
+        private static readonly Regex AuthoredAudioPart = new Regex(@"^(?<work>.+): PART [1-9][0-9]{0,2} (?!OF\b|CHAPTERS?\b|DIS[CK]S?\b|TRACKS?\b)\p{L}", RegexOptions.CultureInvariant);
         private static readonly Regex SubtitleDelimiter = new Regex(@"\s*:\s*|\s+[-–—]\s+", RegexOptions.CultureInvariant);
         private static readonly Regex GenreLine = new Regex(@"(?:: | \()A LITRPG ADVENTURE\)?$", RegexOptions.CultureInvariant);
         private static readonly Regex FileCopySuffix = new Regex(@"\s+\([1-9][0-9]*\)$", RegexOptions.CultureInvariant);
@@ -254,7 +256,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             bool AllowsLocalEdition(Edition edition)
             {
                 var conflict = FindIdentityConflict(edition);
-                if (conflict == MissingNumberedVolumeDetail && idOverrides.Author == null && idOverrides.Book == null)
+                if ((conflict is MissingNumberedVolumeDetail or MissingAuthoredAudioPartDetail) && idOverrides.Author == null && idOverrides.Book == null)
                 {
                     // Keep the explanation without blocking any later exact identifier lookup.
                     localBookRelease.ProviderIdentityConflictDetail = conflict;
@@ -686,6 +688,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             var author = book?.AuthorMetadata?.Value?.Name ?? book?.Author?.Value?.Name;
             var confirmed = NormalizeSubtitleNotation(TrackTitleSuffix.Replace(taggedTitle, string.Empty));
+            if (OmitsCorroboratedM4bWorkPart(release, confirmed, workTitle, editionTitle) &&
+                corroboratedAuthors.Any(knownAuthor => AuthorNameMatches(author, knownAuthor)) &&
+                !HasNonconflictingEditionIdentifier(release.LocalBooks, edition))
+            {
+                return MissingAuthoredAudioPartDetail;
+            }
+
             if (confirmed.Length > 0 && corroboratedAuthors.Any(knownAuthor => AuthorNameMatches(author, knownAuthor)) &&
                 !TitlesAgree(confirmed, workTitle) && !TitlesAgree(confirmed, editionTitle) &&
                 !HasNonconflictingEditionIdentifier(release.LocalBooks, edition))
@@ -704,6 +713,33 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             }
 
             return null;
+        }
+
+        private static bool OmitsCorroboratedM4bWorkPart(LocalEdition release, string confirmed, string workTitle, string editionTitle)
+        {
+            if (release.LocalBooks is not { Count: 1 } || workTitle == null || editionTitle == null)
+            {
+                return false;
+            }
+
+            var file = release.LocalBooks[0];
+            var tags = file.FileTrackInfo;
+            if (file.AdditionalFile || file.Part > 1 ||
+                !string.Equals(Path.GetExtension(file.Path), ".m4b", StringComparison.OrdinalIgnoreCase) ||
+                tags is not { AudioTrackCount: <= 1, DiscNumber: <= 1, DiscCount: <= 1 } ||
+                tags.TrackNumbers is not { Length: 1 } || tags.TrackNumbers[0] != 1)
+            {
+                return false;
+            }
+
+            // The complete part and its subtitle must be present in both embedded titles.
+            // An ordinary track label is not independent evidence of a distinct work.
+            var part = AuthoredAudioPart.Match(confirmed);
+            return part.Success &&
+                NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(tags.BookTitle)) == confirmed &&
+                NormalizeSubtitleNotation(ImportDecisionMaker.NormalizeLibraryIdentity(tags.Title)) == confirmed &&
+                NormalizeSubtitleNotation(workTitle) == part.Groups["work"].Value &&
+                NormalizeSubtitleNotation(editionTitle) == part.Groups["work"].Value;
         }
 
         internal static bool HasConflictingCandidateOrdinal(string taggedTitle, string normalizedWorkTitle, string normalizedEditionTitle)

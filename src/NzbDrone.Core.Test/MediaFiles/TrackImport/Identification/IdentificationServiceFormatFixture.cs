@@ -535,6 +535,68 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.ProviderIdentityConflictDetail.Should().Contain("numbered volume");
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_hold_a_corroborated_audio_part_when_both_candidate_titles_omit_it(bool findRemotely)
+        {
+            const string taggedTitle = "Starling Almanac: Part 2 Lanterns at Dawn";
+            GivenRetryCandidate("Starling Almanac", findRemotely);
+            _config.Filter = FilterFilesType.None;
+            _config.AddNewAuthors = true;
+            var tracks = CreateRetryTracks(taggedTitle, "Test Author - Starling Almanac - Part 2 Lanterns at Dawn");
+            tracks[0].FileTrackInfo.Title = taggedTitle;
+            tracks[0].FileTrackInfo.TrackNumbers = new[] { 1 };
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeNull();
+            release.ProviderIdentityConflictDetail.Should().Contain("numbered part");
+            release.IdentificationHoldReason.Should().Be(findRemotely ? LibraryImportHoldReason.ProviderIdentityConflict : null);
+        }
+
+        [TestCase("Starling Almanac: Part 2 Lanterns at Dawn", 1, false)]
+        [TestCase("Starling Almanac", 1, true)]
+        [TestCase("Starling Almanac", 0, false)]
+        [TestCase("Starling Almanac", 2, false)]
+        public void should_preserve_exact_parts_trusted_identifiers_and_known_track_positions(
+            string candidateTitle, int trackNumber, bool exactIdentifier)
+        {
+            const string taggedTitle = "Starling Almanac: Part 2 Lanterns at Dawn";
+            GivenRetryCandidate(candidateTitle);
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks(taggedTitle, "Test Author - Starling Almanac - Part 2 Lanterns at Dawn");
+            var tags = tracks[0].FileTrackInfo;
+            tags.Title = taggedTitle;
+            tags.TrackNumbers = new[] { trackNumber };
+            if (exactIdentifier)
+            {
+                _audiobookEdition.Asin = "B012345678";
+                tags.Asin = "B012345678";
+                tags.AsinConfidence = 0.98;
+            }
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+
+            release.Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
+        [Test]
+        public void should_keep_two_track_parts_of_the_same_album_on_one_edition()
+        {
+            const string album = "Starling Almanac";
+            GivenRetryCandidate(album);
+            _config.Filter = FilterFilesType.None;
+            var tracks = CreateRetryTracks(album, "Test Author - Starling Almanac - Part 1");
+            var second = CreateRetryTracks(album, "Test Author - Starling Almanac - Part 2").Single();
+            tracks[0].FileTrackInfo.Title = "Part 1";
+            tracks[0].FileTrackInfo.TrackNumbers = new[] { 1 };
+            second.FileTrackInfo.Title = "Part 2";
+            second.FileTrackInfo.TrackNumbers = new[] { 2 };
+            tracks.Add(second);
+
+            Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(_audiobookEdition);
+        }
+
         [TestCase("Study Guide", false)]
         [TestCase("Teacher’s Guide, with Poster", false)]
         [TestCase("Reading Guide", false)]
