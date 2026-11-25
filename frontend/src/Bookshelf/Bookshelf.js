@@ -91,7 +91,8 @@ class Bookshelf extends Component {
       isSaving,
       saveError,
       items,
-      sortKey
+      sortKey,
+      sortDirection
     } = this.props;
 
     const {
@@ -100,6 +101,10 @@ class Bookshelf extends Component {
 
     if (hasDifferentItemsOrOrder(prevProps.items, items)) {
       this.setSelectedState();
+    }
+
+    if (items !== prevProps.items || sortKey !== prevProps.sortKey || sortDirection !== prevProps.sortDirection) {
+      this.setJumpBarItems();
     }
 
     if (prevProps.isSaving && !isSaving && !saveError) {
@@ -311,7 +316,6 @@ class Bookshelf extends Component {
   };
 
   onGridRecompute = (width) => {
-    this.setJumpBarItems();
     this.setState({ estimatedRowSize: this.estimateRowHeight(width) });
     this.cache.clearAll();
   };

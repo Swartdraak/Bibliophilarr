@@ -1,10 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import { sortDirections } from 'Helpers/Props';
 import Bookshelf from './Bookshelf';
 
 jest.mock('Components/Page/PageContent', () => ({ children }) => <main>{children}</main>);
 jest.mock('Components/Page/PageContentBody', () => ({ children, registerScroller }) => (
   <div ref={registerScroller}>{children}</div>
+));
+jest.mock('Components/Page/PageJumpBar', () => ({ items }) => (
+  <nav aria-label="Author initials">{items.order.join(', ')}</nav>
 ));
 jest.mock('Components/Table/VirtualTable', () => ({ items, rowRenderer }) => (
   <div role="grid">
@@ -43,6 +47,8 @@ test('drops hidden author selections when the filtered shelf becomes empty', () 
     selectedFilterKey: 'all',
     filters: [],
     customFilters: [],
+    sortKey: 'sortName',
+    sortDirection: sortDirections.ASCENDING,
     isSaving: false,
     isSmallScreen: false,
     onSortPress: jest.fn(),
@@ -53,6 +59,7 @@ test('drops hidden author selections when the filtered shelf becomes empty', () 
   const newBooks = container.querySelector('select[name="monitorNewItems"]');
   const update = screen.getByRole('button', { name: 'UpdateSelected' });
 
+  expect(screen.getByRole('navigation', { name: 'Author initials' })).toHaveTextContent('A, B');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select author 1' }));
   fireEvent.change(newBooks, { target: { value: 'new' } });
   expect(update).toBeEnabled();
@@ -64,6 +71,7 @@ test('drops hidden author selections when the filtered shelf becomes empty', () 
       selectedFilterKey="monitored"
     />
   );
+  expect(screen.getByRole('navigation', { name: 'Author initials' })).toHaveTextContent(/^A$/);
   expect(screen.getByRole('checkbox', { name: 'Select author 1' })).toBeChecked();
   expect(update).toBeEnabled();
 
@@ -75,12 +83,20 @@ test('drops hidden author selections when the filtered shelf becomes empty', () 
     />
   );
   expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', { name: 'Author initials' })).not.toBeInTheDocument();
   expect(newBooks).toBeDisabled();
   expect(update).toBeDisabled();
   fireEvent.click(update);
   expect(save).not.toHaveBeenCalled();
 
-  rerender(<Bookshelf {...props} items={authors} />);
+  rerender(
+    <Bookshelf
+      {...props}
+      items={authors}
+      sortDirection={sortDirections.DESCENDING}
+    />
+  );
+  expect(screen.getByRole('navigation', { name: 'Author initials' })).toHaveTextContent('B, A');
   expect(screen.getByRole('checkbox', { name: 'Select author 1' })).not.toBeChecked();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select author 2' }));
   fireEvent.click(update);
