@@ -327,6 +327,8 @@ process.
   their HTTP transport and manual Grab failure logs.
 - Report HTTP streamed file downloads using status, byte count and time without
   logging the source URL or destination path.
+- Keep library file discovery paths on one line and omit Calibre connection
+  settings from scan logs.
 
 - Update the locked frontend toolchain copies of cross-spawn, Ajv and YAML
   to their patched versions.
