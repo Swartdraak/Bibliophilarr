@@ -245,14 +245,25 @@ namespace NzbDrone.Core.Test.MetadataSource
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
         }
 
-        [Test]
-        public void should_install_the_fallback_server_error_window_before_returning_from_the_adapter()
+        [TestCase(null, 120)]
+        [TestCase("not-a-retry-after", 120)]
+        [TestCase("30", 120)]
+        [TestCase("3600", 3600)]
+        [TestCase("Wed, 31 Dec 2025 23:59:59 GMT", 120)]
+        [TestCase("Thu, 01 Jan 2026 01:00:00 GMT", 3600)]
+        [TestCase("Fri, 31 Dec 9999 23:59:59 GMT", int.MaxValue)]
+        public void should_install_the_fallback_server_error_window_before_returning_from_the_adapter(string retryAfter, int cooldownSeconds)
         {
             const string bookId = "googlebooks:work:missing-volume";
             var clock = new FixtureTimeProvider();
             var http = Mocker.GetMock<IHttpClient>();
             var request = new HttpRequest("https://example.test");
-            var headers = new HttpHeader { ContentType = "application/json", ["Retry-After"] = "3600" };
+            var headers = new HttpHeader { ContentType = "application/json" };
+            if (retryAfter != null)
+            {
+                headers["Retry-After"] = retryAfter;
+            }
+
             http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns(new HttpResponse(request, headers, "{}", HttpStatusCode.ServiceUnavailable))
                 .Returns(new HttpResponse(request, headers, "{}", HttpStatusCode.NotFound));
@@ -265,9 +276,9 @@ namespace NzbDrone.Core.Test.MetadataSource
 
             Action initial = () => provider.Search("Fixture book", "Fixture Author");
             initial.Should().Throw<GoogleBooksServerErrorException>();
-            provider.RequestCooldownUntilUtc.Should().Be(clock.UtcNow.UtcDateTime.AddMinutes(2));
+            provider.RequestCooldownUntilUtc.Should().Be(clock.UtcNow.UtcDateTime.AddSeconds(cooldownSeconds));
 
-            clock.UtcNow = clock.UtcNow.AddSeconds(119);
+            clock.UtcNow = clock.UtcNow.AddSeconds(cooldownSeconds - 1);
             Action lookup = () => provider.GetBookInfo(bookId);
             lookup.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<GoogleBooksRequestOnCooldownException>();
             http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());

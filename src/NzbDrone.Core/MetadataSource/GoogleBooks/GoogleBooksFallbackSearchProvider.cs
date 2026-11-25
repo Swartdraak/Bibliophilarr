@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -484,7 +485,19 @@ namespace NzbDrone.Core.MetadataSource.GoogleBooks
                 {
                     if (holdOnServerError)
                     {
-                        var until = _requestState.UtcNow.Add(BookSearchFallbackExecutionService.ServerErrorCooldown);
+                        var now = _requestState.UtcNow;
+                        var cooldown = BookSearchFallbackExecutionService.ServerErrorCooldown;
+                        if (response.StatusCode == HttpStatusCode.ServiceUnavailable &&
+                            RetryConditionHeaderValue.TryParse(response.Headers["Retry-After"], out var retryAfter))
+                        {
+                            var delay = retryAfter.Delta ?? (retryAfter.Date.GetValueOrDefault().UtcDateTime - now);
+                            if (delay > cooldown)
+                            {
+                                cooldown = BookSearchFallbackExecutionService.GetRateLimitCooldown(delay);
+                            }
+                        }
+
+                        var until = now.Add(cooldown);
                         if (until > _requestState.CooldownUntilUtc)
                         {
                             _requestState.CooldownUntilUtc = until;
