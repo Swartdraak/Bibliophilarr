@@ -11,6 +11,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
+using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.OpenLibrary.Resources;
 
 namespace NzbDrone.Core.MetadataSource.OpenLibrary
@@ -621,7 +622,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 throw new NzbDrone.Core.Exceptions.BookNotFoundException(foreignBookId);
             }
 
-            var representativeEditions = GetRepresentativeEditions(normalizedWorkId);
+            var expectedWorkId = normalizedWorkId?.ToUpperInvariant();
+            var exactWork = expectedWorkId?.Length > 3 &&
+                            expectedWorkId.StartsWith("OL", StringComparison.Ordinal) &&
+                            expectedWorkId.EndsWith('W') &&
+                            expectedWorkId[2..^1].All(char.IsAsciiDigit) &&
+                            work.Key == "/works/" + expectedWorkId;
+            var workFallback = exactWork ? book.Editions.Value[0] : null;
+            var representativeEditions = GetRepresentativeEditions(normalizedWorkId, workFallback);
             if (representativeEditions.Any())
             {
                 representativeEditions[0].Monitored = true;
@@ -643,20 +651,48 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return Tuple.Create(authorId, book, authorMetaList);
         }
 
-        private List<Edition> GetRepresentativeEditions(string normalizedWorkId)
+        private List<Edition> GetRepresentativeEditions(string normalizedWorkId, Edition workFallback)
         {
             var response = _client.GetWorkEditions(normalizedWorkId, 20, 0);
-
-            return (response?.Entries ?? new List<OlEditionResource>())
-                .Select(OpenLibraryMapper.MapEdition)
-                .Where(x => x != null)
-                .OrderByDescending(IsPreferredEdition)
-                .ThenByDescending(x => x.Images.Any())
-                .ThenByDescending(x => x.PageCount)
-                .ThenByDescending(x => x.ReleaseDate)
-                .DistinctBy(x => x.ForeignEditionId)
+            var selected = (response?.Entries ?? new List<OlEditionResource>())
+                .Select(source => (Source: source, Edition: OpenLibraryMapper.MapEdition(source)))
+                .Where(x => x.Edition != null)
+                .OrderByDescending(x => IsPreferredEdition(x.Edition))
+                .ThenByDescending(x => x.Edition.Images.Any())
+                .ThenByDescending(x => x.Edition.PageCount)
+                .ThenByDescending(x => x.Edition.ReleaseDate)
+                .DistinctBy(x => x.Edition.ForeignEditionId)
                 .Take(5)
                 .ToList();
+            var editions = selected.Select(x => x.Edition).ToList();
+
+            if (workFallback != null && selected.Count > 0)
+            {
+                var source = selected[0].Source;
+                var editionId = OpenLibraryIdNormalizer.NormalizeEditionId(source.Key);
+                var workPath = "/works/" + normalizedWorkId.ToUpperInvariant();
+                if (editionId != null && source.Key == "/books/" + editionId &&
+                    source.Works?.Any(link => link?.Key != workPath) != true)
+                {
+                    ApplyWorkDetailFallback(editions, workFallback);
+                }
+            }
+
+            return editions;
+        }
+
+        private static void ApplyWorkDetailFallback(List<Edition> editions, Edition workFallback)
+        {
+            // Leave edition-specific metadata preferred even when it comes from another selected edition.
+            if (workFallback.Overview.IsNotNullOrWhiteSpace() && editions.GetBookOverview().IsNullOrWhiteSpace())
+            {
+                editions[0].Overview = workFallback.Overview;
+            }
+
+            if (!editions.SelectMany(edition => edition.Images).Any(image => image.CoverType == MediaCoverTypes.Cover))
+            {
+                editions[0].Images.AddRange(workFallback.Images);
+            }
         }
 
         private static bool IsPreferredEdition(Edition edition)

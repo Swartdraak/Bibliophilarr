@@ -6,6 +6,7 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using NUnit.Framework;
+using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
@@ -1113,6 +1114,82 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             result.Item2.AuthorMetadata.Value.ForeignAuthorId.Should().Be("openlibrary:author:OL26320A");
 
             _clientMock.Verify(c => c.GetWork("OL45883W"), Times.Once);
+        }
+
+        [TestCase("no edition metadata")]
+        [TestCase("alternate edition metadata")]
+        [TestCase("conflicting work response")]
+        [TestCase("conflicting preferred edition membership")]
+        public void get_book_info_should_fall_back_to_exact_work_metadata_for_missing_real_edition_fields(string scenario)
+        {
+            var work = BuildWork();
+            work.Covers = new List<long> { 12345 };
+            if (scenario == "conflicting work response")
+            {
+                work.Key = "/works/OL99999W";
+            }
+
+            var ebook = new OlEditionResource
+            {
+                Key = "/books/OL123M",
+                Title = "Selected ebook edition",
+                PhysicalFormat = "Ebook",
+                Isbn13 = new List<string> { "9780618346257" },
+                Works = new List<OlKeyRef>
+                {
+                    new OlKeyRef { Key = scenario == "conflicting preferred edition membership" ? "/works/OL99999W" : "/works/OL45883W" }
+                }
+            };
+            var audio = new OlEditionResource
+            {
+                Key = "/books/OL124M",
+                Title = "Alternate audio edition",
+                PhysicalFormat = "Audiobook"
+            };
+            if (scenario == "alternate edition metadata")
+            {
+                audio.Description = "An edition-specific synopsis.";
+                audio.Covers = new List<long> { 67890 };
+            }
+
+            _clientMock.Setup(c => c.GetWork("OL45883W")).Returns(work);
+            _clientMock.Setup(c => c.GetAuthor("/authors/OL26320A")).Returns(BuildAuthor());
+            _clientMock.Setup(c => c.GetWorkEditions("OL45883W", 20, 0))
+                .Returns(new OlWorkEditionsResponse { Entries = new List<OlEditionResource> { audio, ebook } });
+
+            var editions = Subject.GetBookInfo("openlibrary:work:OL45883W").Item2.Editions.Value;
+
+            editions.Select(edition => edition.ForeignEditionId).Should()
+                    .Equal("openlibrary:edition:OL123M", "openlibrary:edition:OL124M");
+            editions[0].Monitored.Should().BeTrue();
+            editions[0].MatchesFormat(FormatType.Ebook).Should().BeTrue();
+            editions[1].Monitored.Should().BeFalse();
+            editions[1].MatchesFormat(FormatType.Audiobook).Should().BeTrue();
+
+            if (scenario == "no edition metadata")
+            {
+                editions.GetBookOverview().Should().Be(work.Description);
+                editions.GetBookImages().Should().ContainSingle(image =>
+                    image.SourceProvider == "OpenLibrary" && image.SourceId == "OL45883W" && image.Url.Contains("12345"));
+            }
+            else if (scenario == "alternate edition metadata")
+            {
+                editions[0].Overview.Should().BeNullOrWhiteSpace();
+                editions[0].Images.Should().BeEmpty();
+                editions.GetBookOverview().Should().Be(audio.Description);
+                editions.GetBookImages().Should().ContainSingle(image =>
+                    image.SourceProvider == "OpenLibrary" && image.SourceId == "OL124M" && image.Url.Contains("67890"));
+            }
+            else
+            {
+                editions.GetBookOverview().Should().BeNull();
+                editions.GetBookImages().Should().BeEmpty();
+            }
+
+            _clientMock.Verify(c => c.GetWork("OL45883W"), Times.Once());
+            _clientMock.Verify(c => c.GetAuthor("/authors/OL26320A"), Times.Once());
+            _clientMock.Verify(c => c.GetWorkEditions("OL45883W", 20, 0), Times.Once());
+            _clientMock.VerifyNoOtherCalls();
         }
 
         [Test]

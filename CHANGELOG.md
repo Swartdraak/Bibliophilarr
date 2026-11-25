@@ -87,6 +87,8 @@ process.
 - Include exact-name Open Library matches in Add New author search when the
   configured search has already returned results and Open Library is eligible.
   Keep distinct authors with the same name and group verified provider aliases.
+- Keep the synopsis and cover from a verified Open Library work when its
+  selected editions omit them.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked
