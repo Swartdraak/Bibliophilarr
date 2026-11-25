@@ -49,6 +49,8 @@ process.
 
 ### Fixed
 
+- Show the exact stored work's synopsis in Add New when the provider result
+  omits it.
 - Fill a blank stored Hardcover series description from agreeing book metadata
   when the separate membership request is incomplete.
 - Give Add New author and book result controls accessible names so screen readers

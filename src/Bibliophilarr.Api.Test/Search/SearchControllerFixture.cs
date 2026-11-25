@@ -234,7 +234,7 @@ namespace NzbDrone.Api.Test.Search
                 ForeignBookId = "hardcover:work:42",
                 Editions = new List<Edition>
                 {
-                    new Edition { Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, remoteCoverUrl) } }
+                    new Edition { Overview = "Provider synopsis", Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, remoteCoverUrl) } }
                 }
             };
             var disputedBook = new Book
@@ -400,6 +400,64 @@ namespace NzbDrone.Api.Test.Search
             poster.Url.Should().Be("https://covers.example/fallback-author.jpg");
             covers.Verify(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Author, It.IsAny<IEnumerable<MediaCover>>()), Times.Once);
             covers.Verify(mapper => mapper.ConvertToLocalUrls(0, MediaCoverEntity.Book, It.IsAny<IEnumerable<MediaCover>>()), Times.Exactly(2));
+        }
+
+        [TestCase("exact-source", null, "Stored exact synopsis")]
+        [TestCase("exact-source", "  ", "Stored exact synopsis")]
+        [TestCase("exact-source", "Provider synopsis", "Provider synopsis")]
+        [TestCase("different-source", null, null)]
+        [TestCase("different-owner", null, null)]
+        public void should_fill_only_a_missing_synopsis_from_the_same_stored_primary_work(
+            string storedMatch, string providerSynopsis, string expected)
+        {
+            const string title = "Fixture Work";
+            const string coverUrl = "https://covers.example/search.jpg";
+            var selectedEdition = new Edition
+            {
+                Title = title,
+                ForeignEditionId = "hardcover:source-edition:15",
+                Overview = providerSynopsis,
+                Images = new List<MediaCover> { new MediaCover(MediaCoverTypes.Cover, coverUrl) }
+            };
+            var first = new Book { Title = title, ForeignBookId = "hardcover:work:041", Editions = new List<Edition> { selectedEdition } };
+            var repeated = new Book { Title = title, ForeignBookId = "hardcover:work:41" };
+            var namesake = new Book { Title = title, ForeignBookId = "hardcover:work:99" };
+            var stored = new Book
+            {
+                Id = storedMatch == "different-owner" ? 25 : 23,
+                ForeignBookId = storedMatch == "different-source" ? "openlibrary:work:OL41W" : repeated.ForeignBookId,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = "hardcover:source-edition:16", Overview = "Stored exact synopsis" } }
+            };
+
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Work, "Hardcover", "41")).Returns(23);
+            var books = new Mock<IBookRepository>(MockBehavior.Strict);
+            books.Setup(repository => repository.Find(23)).Returns(stored);
+            var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
+            proxy.Setup(search => search.SearchForNewBook(title, null, false)).Returns(new List<Book> { first, namesake, repeated });
+            var controller = new SearchController(proxy.Object,
+                Mock.Of<IBuildFileNames>(),
+                Mock.Of<IMapCoversToLocal>(),
+                _telemetry,
+                identity.Object,
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                books.Object);
+
+            var results = (List<SearchResource>)controller.Search(title, "book");
+
+            results.Select(result => result.ForeignId).Should().Equal(first.ForeignBookId, namesake.ForeignBookId);
+            results[0].CatalogueOwnerId.Should().Be(23);
+            results[0].Book.Overview.Should().Be(expected);
+            results[0].Book.Editions.Should().ContainSingle().Which.ForeignEditionId.Should().Be(selectedEdition.ForeignEditionId);
+            results[0].Book.Images.Should().ContainSingle().Which.Url.Should().Be(coverUrl);
+            results[1].Book.Overview.Should().BeNull();
+            results[1].CatalogueOwnerId.Should().BeNull();
+            selectedEdition.Overview.Should().Be(providerSynopsis);
+            books.Verify(repository => repository.Find(23), string.IsNullOrWhiteSpace(providerSynopsis) ? Times.Once() : Times.Never());
+            books.VerifyNoOtherCalls();
+            proxy.Verify(search => search.SearchForNewBook(title, null, false), Times.Once());
+            proxy.VerifyNoOtherCalls();
         }
 
         [Test]

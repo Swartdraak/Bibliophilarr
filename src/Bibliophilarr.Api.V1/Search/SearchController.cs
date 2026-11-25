@@ -183,17 +183,23 @@ namespace Bibliophilarr.Api.V1.Search
                             .SelectMany(alternate => BookEditionSelector.GetBookImages(alternate.Editions?.Value)));
                     _coverMapper.ConvertToLocalUrls(resource.Book.Id, MediaCoverEntity.Book, resource.Book.Images);
 
-                    if (cover == null && representative.HasVerifiedSource && resource.CatalogueOwnerId is int bookId)
+                    var needsOverview = string.IsNullOrWhiteSpace(resource.Book.Overview);
+                    if ((cover == null || needsOverview) && representative.HasVerifiedSource && resource.CatalogueOwnerId is int bookId)
                     {
                         var storedBook = _bookRepository.Find(bookId);
                         if (storedBook != null)
                         {
-                            cover = AppendStoredArtwork(
+                            cover ??= AppendStoredArtwork(
                                 resource.Book.Images,
                                 bookId,
                                 MediaCoverEntity.Book,
                                 MediaCoverTypes.Cover,
                                 BookEditionSelector.GetBookImages(storedBook.Editions?.Value));
+
+                            if (needsOverview && storedBook.Id == bookId && HasSamePrimaryWorkSource(book, storedBook))
+                            {
+                                resource.Book.Overview = storedBook.Editions?.Value.GetBookOverview() ?? resource.Book.Overview;
+                            }
                         }
                     }
 
@@ -227,6 +233,14 @@ namespace Bibliophilarr.Api.V1.Search
 
                 yield return resource;
             }
+        }
+
+        private static bool HasSamePrimaryWorkSource(Book hit, Book stored)
+        {
+            const CatalogueEntityKind kind = CatalogueEntityKind.Work;
+            var source = CatalogueIdentityRepository.NormalizeProviderSearchId(kind, hit.ForeignBookId);
+            var primary = CatalogueIdentityRepository.NormalizeProviderSearchId(kind, stored.ForeignBookId);
+            return source != null && primary != null && source.Provider == primary.Provider && source.ProviderId == primary.ProviderId;
         }
 
         private static MediaCover SelectSearchArtwork(List<MediaCover> images, MediaCoverTypes coverType, IEnumerable<MediaCover> alternateImages)
