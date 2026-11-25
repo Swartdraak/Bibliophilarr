@@ -75,11 +75,11 @@ namespace Bibliophilarr.Http.ErrorManagement
                     }
                 }
 
-                _logger.Error(sqLiteException, "[{0} {1}]", context.Request.Method, LogSanitizer.Sanitize(context.Request.Path));
+                _logger.Error(sqLiteException, "[{0} {1}]", LogSanitizer.Sanitize(context.Request.Method), LogSanitizer.Sanitize(context.Request.Path));
             }
             else
             {
-                _logger.Fatal(exception, "Request Failed. {0} {1}", context.Request.Method, LogSanitizer.Sanitize(context.Request.Path));
+                _logger.Fatal(exception, "Request Failed. {0} {1}", LogSanitizer.Sanitize(context.Request.Method), LogSanitizer.Sanitize(context.Request.Path));
             }
 
             await errorModel.WriteToResponse(response, statusCode);
