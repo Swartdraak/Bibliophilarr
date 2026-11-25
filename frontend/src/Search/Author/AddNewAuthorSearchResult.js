@@ -62,10 +62,6 @@ class AddNewAuthorSearchResult extends Component {
     this.setState({ isNewAddAuthorModalOpen: false });
   };
 
-  onMBLinkPress = (event) => {
-    event.stopPropagation();
-  };
-
   //
   // Render
 

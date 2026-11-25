@@ -70,10 +70,6 @@ class AddNewBookSearchResult extends Component {
     this.setState({ isNewAddBookModalOpen: false });
   };
 
-  onMBLinkPress = (event) => {
-    event.stopPropagation();
-  };
-
   //
   // Render
 
