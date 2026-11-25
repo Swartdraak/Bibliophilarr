@@ -224,3 +224,57 @@ test.each([
   fireEvent.click(screen.getByRole('checkbox', { name: 'Marshland Almanac (Arden Orchard)', exact: true }), { shiftKey: true });
   expect(onSelectedChange).toHaveBeenLastCalledWith({ id: 21, value: true, shiftKey: true });
 });
+
+test.each([
+  ['an available cover', 'Marshland Almanac', [{ coverType: 'cover', url: '/MediaCover/Books/21/cover.jpg' }], 'Marshland Almanac'],
+  ['a missing cover', 'Marshland Almanac', [], 'Marshland Almanac'],
+  ['a blank legacy title', '  ', [{ coverType: 'cover', url: '/MediaCover/Books/21/cover.jpg' }], 'Book']
+])('names the real book poster link with %s when card titles are hidden', (_, title, images, expectedName) => {
+  const catalogue = (
+    <MemoryRouter>
+      <BookIndexPoster
+        id={21}
+        title={title}
+        titleSlug="marshland-almanac"
+        sortKey="title"
+        authorId={11}
+        author={{ authorName: 'Arden Orchard' }}
+        monitored={true}
+        images={images}
+        posterWidth={100}
+        posterHeight={150}
+        detailedProgressBar={false}
+        showTitle={false}
+        showAuthor={false}
+        showMonitored={false}
+        showQualityProfile={false}
+        qualityProfile={{}}
+        showSearchAction={false}
+        showRelativeDates={false}
+        shortDateFormat="MMM D"
+        timeFormat="HH:mm"
+        isRefreshingBook={false}
+        isSearchingBook={false}
+        onRefreshBookPress={jest.fn()}
+        onSearchPress={jest.fn()}
+        isEditorActive={false}
+        onSelectedChange={jest.fn()}
+      />
+    </MemoryRouter>
+  );
+
+  const runtime = jest.replaceProperty(window, 'Bibliophilarr', {
+    ...window.Bibliophilarr,
+    urlBase: '/fixture-base'
+  });
+
+  try {
+    render(catalogue);
+  } finally {
+    runtime.restore();
+  }
+
+  const link = screen.getByRole('link', { name: expectedName });
+  expect(link).toHaveAttribute('aria-label', expectedName);
+  expect(link).toHaveAttribute('href', '/fixture-base/book/marshland-almanac');
+});
