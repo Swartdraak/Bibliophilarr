@@ -109,13 +109,18 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
 
             _logger.Debug($"Using up to {maxWorkers} identification worker(s) for {releases.Count} release(s)");
 
-            var processed = 0;
+            const int progressInterval = 25;
+            var checkedReleases = 0;
+            var progressLock = new object();
+            if (releases.Count > 0)
+            {
+                _logger.ProgressInfo("Checking catalogue matches ({0} total).", releases.Count);
+            }
+
             var options = new ParallelOptions { MaxDegreeOfParallelism = maxWorkers };
 
             Parallel.ForEach(releases, options, localRelease =>
             {
-                var current = Interlocked.Increment(ref processed);
-                _logger.ProgressInfo($"Identifying book {current}/{releases.Count}");
                 _logger.Debug($"Identifying book files:\n{localRelease.LocalBooks.Select(x => x.Path).ConcatToString("\n")}");
 
                 try
@@ -128,6 +133,17 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
                     if (runSummary != null)
                     {
                         Interlocked.Increment(ref runSummary.ErrorsRef);
+                    }
+                }
+                finally
+                {
+                    lock (progressLock)
+                    {
+                        checkedReleases++;
+                        if (checkedReleases % progressInterval == 0 || checkedReleases == releases.Count)
+                        {
+                            _logger.ProgressInfo("Checked catalogue matches for {0} of {1} releases.", checkedReleases, releases.Count);
+                        }
                     }
                 }
             });

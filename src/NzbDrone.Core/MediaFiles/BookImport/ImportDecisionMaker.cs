@@ -197,6 +197,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
 
             var releases = _identificationService.Identify(localTracks, idOverrides, config, runSummary);
 
+            const int progressInterval = 25;
+            var checkedReleases = 0;
+            if (releases.Count > 0)
+            {
+                _logger.ProgressInfo("Resolving unmatched releases and applying import rules.");
+            }
+
             foreach (var release in releases)
             {
                 // make sure the appropriate quality profile is set for the release author
@@ -237,6 +244,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                         decisions.Add(new ImportDecision<LocalBook>(localTrack, releaseDecision.Rejections.ToArray()));
                         runSummary.Rejected++;
                     }
+                }
+
+                checkedReleases++;
+                if (checkedReleases % progressInterval == 0 || checkedReleases == releases.Count)
+                {
+                    _logger.ProgressInfo("Checked import rules for {0} of {1} releases.", checkedReleases, releases.Count);
                 }
             }
 

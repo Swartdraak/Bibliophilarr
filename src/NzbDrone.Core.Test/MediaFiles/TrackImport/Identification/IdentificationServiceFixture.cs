@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Configuration;
@@ -42,6 +45,32 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport.Identification
             Mocker.SetConstant<ICandidateService>(Mocker.Resolve<CandidateService>());
             Mocker.SetConstant<IEnumerable<IAggregate<LocalEdition>>>(new[] { Mocker.Resolve<AggregateFilenameInfo>() });
             Mocker.SetConstant<IAugmentingService>(Mocker.Resolve<AugmentingService>());
+        }
+
+        [Test]
+        public void should_report_catalogue_checks_as_complete_only_after_matching_returns()
+        {
+            var edition = new Edition { Id = 101, ForeignEditionId = "hardcover:edition:101", Format = "EPUB", IsEbook = true };
+            var book = GivenBook(1, "Rowan Vale", "The Distant Light", edition);
+            var file = TaggedFile("/library/Rowan Vale - The Distant Light.epub", book, Quality.EPUB);
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRule(LogLevel.Info, LogLevel.Info, messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            Mocker.SetConstant(logFactory.GetLogger(nameof(IdentificationService)));
+
+            List<string> messagesDuringMatching = null;
+            Mocker.GetMock<IEditionService>().Setup(service => service.GetEditionsByBook(book.Id)).Returns(() =>
+            {
+                messagesDuringMatching = messages.Logs.ToList();
+                return new List<Edition> { edition };
+            });
+
+            var result = Identify(file);
+
+            AssertAssignment(result, book, edition, file);
+            messagesDuringMatching.Should().Equal("Checking catalogue matches (1 total).");
+            messages.Logs.Should().Equal("Checking catalogue matches (1 total).", "Checked catalogue matches for 1 of 1 releases.");
         }
 
         [Test]
