@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using NzbDrone.Core.Books;
 
 namespace NzbDrone.Core.MetadataSource
@@ -24,6 +25,7 @@ namespace NzbDrone.Core.MetadataSource
         List<Book> SearchByAsin(string asin);
         List<Book> SearchByExternalId(string idType, string id);
         List<Author> SearchForNewAuthor(string title);
+        List<Author> SearchForInteractiveAuthors(string title, CancellationToken cancellationToken);
         List<SeriesSearchSummary> SearchForNewSeries(string title);
         List<Book> GetSeriesBooks(string foreignSeriesId);
         List<object> SearchForNewEntity(string title);

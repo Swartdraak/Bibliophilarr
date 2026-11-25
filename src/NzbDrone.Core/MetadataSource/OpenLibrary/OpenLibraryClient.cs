@@ -14,6 +14,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
     public interface IOpenLibraryClient
     {
         OlSearchResponse Search(string query, int limit = 20, int offset = 0);
+        OlSearchResponse SearchOnePageWithoutRetry(string query, int limit);
         OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0);
         OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0);
         OlWorkResource GetWork(string olid);
@@ -64,6 +65,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public OlSearchResponse Search(string query, int limit = 20, int offset = 0)
         {
+            return Search(query, limit, offset, GetRetryBudget(OperationClass.Search), supplemental: false);
+        }
+
+        public OlSearchResponse SearchOnePageWithoutRetry(string query, int limit)
+        {
+            return Search(query, limit, offset: 0, retryBudget: 0, supplemental: true);
+        }
+
+        private OlSearchResponse Search(string query, int limit, int offset, int retryBudget, bool supplemental)
+        {
             _logger.Debug("OpenLibrary search: {0}", query);
 
             var requestBuilder = new HttpRequestBuilder(BaseUrl + "/search.json")
@@ -82,7 +93,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Search));
             request.SuppressHttpError = true;
 
-            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, GetRetryBudget(OperationClass.Search));
+            if (supplemental)
+            {
+                request.AllowAutoRedirect = false;
+            }
+
+            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, retryBudget);
 
             // Author hydration must distinguish a failed request from an empty final page.
             return query.StartsWith("author_key:", StringComparison.Ordinal)

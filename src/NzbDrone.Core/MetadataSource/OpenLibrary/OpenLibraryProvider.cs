@@ -25,6 +25,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         IProvideBookInfo,
         ISearchForNewBook,
         ISearchForNewAuthor,
+        ISearchForSupplementalAuthor,
         ISearchForNewEntity
     {
         // ── IMetadataProvider ────────────────────────────────────────────────
@@ -920,7 +921,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         {
             _logger.Debug("OpenLibraryProvider.SearchForNewAuthor: {0}", title);
 
-            var response = SearchText(title, 10);
+            return MapSearchAuthors(SearchText(title, 10));
+        }
+
+        public List<Author> SearchForSupplementalAuthor(string title)
+        {
+            var response = _client.SearchOnePageWithoutRetry(title, 10);
+            if (response?.RequestUnavailable == true)
+            {
+                throw new ServiceProviderException("Open Library did not return a usable supplemental author search response.");
+            }
+
+            return MapSearchAuthors(response);
+        }
+
+        private static List<Author> MapSearchAuthors(OlSearchResponse response)
+        {
             return (response?.Docs ?? new List<OlSearchDoc>())
                 .Select(d => OpenLibraryMapper.MapSearchDocToBook(d))
                 .Where(b => b?.Author?.Value != null)

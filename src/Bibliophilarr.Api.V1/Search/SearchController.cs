@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Bibliophilarr.Api.V1.Author;
 using Bibliophilarr.Api.V1.Books;
 using Bibliophilarr.Http;
@@ -73,7 +74,7 @@ namespace Bibliophilarr.Api.V1.Search
 
             var searchResults = scope switch
             {
-                "author" => _searchProxy.SearchForNewAuthor(term)?.Cast<object>(),
+                "author" => _searchProxy.SearchForInteractiveAuthors(term, HttpContext?.RequestAborted ?? CancellationToken.None)?.Cast<object>(),
                 "book" => _searchProxy.SearchForNewBook(term, null, false)?.Cast<object>(),
                 "series" => _searchProxy.SearchForNewSeries(term)?.Cast<object>(),
                 "series-books" => _searchProxy.GetSeriesBooks(term)?.Cast<object>(),
@@ -90,7 +91,8 @@ namespace Bibliophilarr.Api.V1.Search
                 });
             }
 
-            return MapToResource(searchResults, term).ToList();
+            var requireAuthorSourceEvidence = scope == "author" && MetadataProviderOrchestrator.IsInteractiveAuthorName(term);
+            return MapToResource(searchResults, term, requireAuthorSourceEvidence).ToList();
         }
 
         private static bool IsHardcoverSeriesId(string term)
@@ -100,7 +102,7 @@ namespace Bibliophilarr.Api.V1.Search
                    seriesId > 0;
         }
 
-        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term)
+        private IEnumerable<SearchResource> MapToResource(IEnumerable<object> results, string term, bool requireAuthorSourceEvidence)
         {
             // Issue #250: MetadataProviderOrchestrator.ExecuteFirst returns null when no
             // provider returns a result (every provider failed or returned null, or no
@@ -116,7 +118,7 @@ namespace Bibliophilarr.Api.V1.Search
 
             var groups = results.Select((result, index) =>
                 {
-                    var identity = GetSearchIdentity(result, out var hasVerifiedSource);
+                    var identity = GetSearchIdentity(result, out var hasVerifiedSource, requireAuthorSourceEvidence);
                     return (Result: result, Identity: identity, Index: index, HasVerifiedSource: hasVerifiedSource);
                 })
                 .GroupBy(hit => (hit.Identity, UngroupedIndex: hit.Identity.HasValue ? -1 : hit.Index));
@@ -312,7 +314,8 @@ namespace Bibliophilarr.Api.V1.Search
             return covers;
         }
 
-        private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(object result, out bool hasVerifiedSource)
+        private (CatalogueEntityKind Kind, int? OwnerId, string SourceIdentity)? GetSearchIdentity(
+            object result, out bool hasVerifiedSource, bool requireAuthorSourceEvidence = false)
         {
             var (kind, canonicalId, providerId) = result switch
             {
@@ -331,6 +334,14 @@ namespace Bibliophilarr.Api.V1.Search
             {
                 hasVerifiedSource = false;
                 return null;
+            }
+
+            if (requireAuthorSourceEvidence && kind == CatalogueEntityKind.Author && sourceOwner is int metadataId &&
+                !_catalogueIdentity.GetSources(kind, metadataId).Any(candidate =>
+                    candidate.Provider == source.Provider && candidate.ProviderId == source.ProviderId &&
+                    CatalogueIdentityRepository.IsVerifiedAuthorSearchEvidence(candidate.Evidence)))
+            {
+                sourceOwner = null;
             }
 
             hasVerifiedSource = sourceOwner.HasValue;

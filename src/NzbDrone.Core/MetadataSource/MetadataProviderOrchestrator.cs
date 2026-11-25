@@ -194,6 +194,64 @@ namespace NzbDrone.Core.MetadataSource
                 p => p.SupportsAuthorSearch);
         }
 
+        public List<Author> SearchForInteractiveAuthors(string title, CancellationToken cancellationToken)
+        {
+            const string supplementalProvider = "OpenLibrary";
+            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var primary = ExecuteFirst<ISearchForNewAuthor, List<Author>>(
+                provider =>
+                {
+                    attempted.Add(((IMetadataProvider)provider).ProviderName);
+                    return provider.SearchForNewAuthor(title);
+                },
+                "search-for-new-author",
+                provider => provider.SupportsAuthorSearch,
+                treatEmptyListAsNoData: true,
+                cancellationToken: cancellationToken);
+
+            if (primary == null || attempted.Contains(supplementalProvider) || cancellationToken.IsCancellationRequested ||
+                !IsInteractiveAuthorName(title))
+            {
+                return primary;
+            }
+
+            var normalized = AuthorCanonicalizationService.NormalizeName(title);
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                !_registry.GetProvidersHealthStatus().TryGetValue(supplementalProvider, out var health) ||
+                health == null ||
+                (health.Health != ProviderHealth.Healthy && health.Health != ProviderHealth.Unknown) ||
+                health.CooldownUntilUtc > DateTime.UtcNow)
+            {
+                return primary;
+            }
+
+            // This optional Open Library operation reads at most one page without retries or redirects.
+            var supplemental = ExecuteFirst<ISearchForSupplementalAuthor, List<Author>>(
+                provider => provider.SearchForSupplementalAuthor(title),
+                "search-for-new-author-supplement",
+                provider => provider.SupportsAuthorSearch &&
+                            string.Equals(provider.ProviderName, supplementalProvider, StringComparison.OrdinalIgnoreCase),
+                cancellationToken: cancellationToken);
+            if (supplemental == null)
+            {
+                return primary;
+            }
+
+            return primary.Concat(supplemental.Where(author =>
+                AuthorCanonicalizationService.NormalizeName(author?.Metadata?.Value?.Name) == normalized &&
+                CatalogueIdentityRepository.NormalizeProviderSearchId(CatalogueEntityKind.Author, author.Metadata.Value.ForeignAuthorId)?.Provider == supplementalProvider))
+                .ToList();
+        }
+
+        public static bool IsInteractiveAuthorName(string title)
+        {
+            return title is { Length: >= 3 and <= 128 } &&
+                   title.Any(char.IsLetter) &&
+                   !title.Any(character => character is ':' or '/' or '\\' || char.IsControl(character)) &&
+                   !BareOpenLibraryTokenRegex.IsMatch(title) &&
+                   !Guid.TryParse(title, out _);
+        }
+
         public List<object> SearchForNewEntity(string title)
         {
             return ExecuteFirstNonEmpty<ISearchForNewEntity, List<object>>(
@@ -312,7 +370,8 @@ namespace NzbDrone.Core.MetadataSource
                                              string entityId = null,
                                              bool throwOnTransportFailure = false,
                                              bool treatEmptyListAsNoData = false,
-                                             Func<T, bool> acceptResult = null)
+                                             Func<T, bool> acceptResult = null,
+                                             CancellationToken cancellationToken = default)
             where TContract : class
             where T : class
         {
@@ -343,6 +402,7 @@ namespace NzbDrone.Core.MetadataSource
 
             for (var i = 0; i < providers.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var provider = providers[i];
                 var stopwatch = Stopwatch.StartNew();
 
@@ -406,6 +466,10 @@ namespace NzbDrone.Core.MetadataSource
 
                         return result;
                     }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (GoogleBooksRequestOnCooldownException)
                 {

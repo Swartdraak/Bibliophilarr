@@ -224,6 +224,11 @@ namespace NzbDrone.Core.Books
             return ParseLegacySource(kind, identifier, null);
         }
 
+        public static bool IsVerifiedAuthorSearchEvidence(string evidence)
+        {
+            return evidence is PrimaryProviderEvidence or LegacyProviderEvidence or AuthorCanonicalizationService.BibliographyEvidence;
+        }
+
         internal static CatalogueSourceAssociation ParseLegacySource(CatalogueEntityKind kind, string scopedId, string evidence)
         {
             if (string.IsNullOrWhiteSpace(scopedId))

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Bibliophilarr.Api.V1.Search;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NLog;
@@ -493,6 +495,166 @@ namespace NzbDrone.Api.Test.Search
             proxy.VerifyNoOtherCalls();
         }
 
+        [Test]
+        public void should_supplement_interactive_author_results_using_only_exact_name_and_corroborated_identity()
+        {
+            const string term = "Jeff Fixture";
+            const string primaryId = "hardcover:author:41";
+            const string portrait = "https://covers.example/verified-alternate-portrait.jpg";
+            var primary = SearchAuthor(primaryId);
+            var verifiedAlias = SearchAuthor("openlibrary:author:OL300A");
+            verifiedAlias.Metadata.Value.Images = new List<MediaCover> { new (MediaCoverTypes.Poster, portrait) };
+            var namesake = SearchAuthor("openlibrary:author:OL301A");
+            var weakAlias = SearchAuthor("openlibrary:author:OL302A");
+            weakAlias.Metadata.Value.Images = new List<MediaCover> { new (MediaCoverTypes.Poster, "https://covers.example/unverified-portrait.jpg") };
+            var fuzzy = SearchAuthor("openlibrary:author:OL303A");
+            fuzzy.Metadata.Value.Name = "Jeff Other";
+
+            var identity = new Mock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "Hardcover", "41")).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL300A")).Returns(11);
+            identity.Setup(repository => repository.FindByProviderId(CatalogueEntityKind.Author, "OpenLibrary", "OL302A")).Returns(11);
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, 11))
+                .Returns(new[]
+                {
+                    new CatalogueSourceAssociation { Provider = "Hardcover", ProviderId = "41", Evidence = "primary-provider-id" },
+                    new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL300A", Evidence = "two-isbn-title-author-work-witnesses" },
+                    new CatalogueSourceAssociation { Provider = "OpenLibrary", ProviderId = "OL302A", Evidence = "legacy-linked-id" }
+                });
+
+            var hardcover = AuthorSearchAdapter("Hardcover", term, () => new List<Author> { primary });
+            var openLibrary = AuthorSearchAdapter("OpenLibrary", term, () => new List<Author> { verifiedAlias, namesake, weakAlias, fuzzy });
+            var controller = InteractiveAuthorSearchController(identity.Object, hardcover.Provider, openLibrary.Provider);
+
+            var results = (List<SearchResource>)controller.Search(term, "author");
+
+            hardcover.Search.Verify(search => search.SearchForNewAuthor(term), Times.Once());
+            openLibrary.Supplement.Verify(search => search.SearchForSupplementalAuthor(term), Times.Once());
+            results.Select(result => result.ForeignId).Should().Equal(primaryId, namesake.ForeignAuthorId, weakAlias.ForeignAuthorId);
+            results[0].CatalogueOwnerId.Should().Be(11);
+            results[0].Author.Images.Should().ContainSingle(image => image.CoverType == MediaCoverTypes.Poster && image.Url == portrait);
+            results.Skip(1).Should().OnlyContain(result => result.CatalogueOwnerId == null);
+        }
+
+        [TestCase("Jeff Fixture", false, true)]
+        [TestCase("Jeff Fixture", true, false)]
+        [TestCase("openlibrary:author:OL300A", false, false)]
+        [TestCase("OL300A", false, false)]
+        [TestCase("300", false, false)]
+        public void should_bound_an_optional_author_provider_attempt_and_skip_identifiers_or_cancelled_requests(
+            string term, bool cancelAfterPrimary, bool supplementExpected)
+        {
+            using var cancellation = new CancellationTokenSource();
+            var google = AuthorSearchAdapter("GoogleBooks", term, () =>
+            {
+                if (cancelAfterPrimary)
+                {
+                    cancellation.Cancel();
+                }
+
+                return new List<Author> { SearchAuthor("googlebooks:author:Jeff%20Fixture") };
+            });
+            var openLibrary = AuthorSearchAdapter("OpenLibrary", term, () => new List<Author>());
+            var hardcover = AuthorSearchAdapter("Hardcover", term, () => new List<Author>());
+            var controller = InteractiveAuthorSearchController(Mock.Of<ICatalogueIdentityRepository>(), google.Provider, openLibrary.Provider, hardcover.Provider);
+            controller.ControllerContext.HttpContext = new DefaultHttpContext { RequestAborted = cancellation.Token };
+
+            if (cancelAfterPrimary)
+            {
+                try
+                {
+                    controller.Search(term, "author");
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                {
+                    // An aborted caller may end the action before returning its first-provider result.
+                }
+            }
+            else
+            {
+                ((List<SearchResource>)controller.Search(term, "author")).Should().ContainSingle();
+            }
+
+            google.Search.Verify(search => search.SearchForNewAuthor(term), Times.Once());
+            openLibrary.Supplement.Verify(search => search.SearchForSupplementalAuthor(term), supplementExpected ? Times.Once() : Times.Never());
+            openLibrary.Search.Verify(search => search.SearchForNewAuthor(It.IsAny<string>()), Times.Never());
+            hardcover.Search.Verify(search => search.SearchForNewAuthor(It.IsAny<string>()), Times.Never());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_keep_the_primary_author_results_when_the_optional_provider_is_unavailable(bool coolingDown)
+        {
+            const string term = "Jeff Fixture";
+            var primaryResult = SearchAuthor("hardcover:author:41");
+            var hardcover = AuthorSearchAdapter("Hardcover", term, () => new List<Author> { primaryResult });
+            var openLibrary = AuthorSearchAdapter("OpenLibrary", term, () => new List<Author>());
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(service => service.GetProviders()).Returns(new[] { hardcover.Provider, openLibrary.Provider });
+            registry.Setup(service => service.GetProvidersHealthStatus()).Returns(new Dictionary<string, ProviderHealthStatus>
+            {
+                ["Hardcover"] = new ProviderHealthStatus { Health = ProviderHealth.Healthy },
+                ["OpenLibrary"] = new ProviderHealthStatus
+                {
+                    Health = coolingDown ? ProviderHealth.Healthy : ProviderHealth.Unhealthy,
+                    CooldownUntilUtc = coolingDown ? DateTime.UtcNow.AddDays(1) : null
+                }
+            });
+            var providerTelemetry = new MetadataProviderTelemetryService();
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, providerTelemetry, LogManager.GetLogger("FixtureProviderSearch"));
+            var controller = new SearchController(
+                orchestrator,
+                Mock.Of<IBuildFileNames>(),
+                Mock.Of<IMapCoversToLocal>(),
+                _telemetry,
+                Mock.Of<ICatalogueIdentityRepository>(),
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
+
+            var result = ((List<SearchResource>)controller.Search(term, "author")).Should().ContainSingle().Which;
+
+            result.ForeignId.Should().Be(primaryResult.ForeignAuthorId);
+            openLibrary.Supplement.Verify(search => search.SearchForSupplementalAuthor(It.IsAny<string>()), Times.Never());
+            var providerResult = providerTelemetry.GetSnapshots().Should().ContainSingle().Which;
+            providerResult.ProviderName.Should().Be("Hardcover");
+            providerResult.Calls.Should().Be(1);
+            providerResult.TotalResultCount.Should().Be(1);
+        }
+
+        private static (IMetadataProvider Provider, Mock<ISearchForNewAuthor> Search, Mock<ISearchForSupplementalAuthor> Supplement) AuthorSearchAdapter(
+            string name, string term, Func<List<Author>> reply)
+        {
+            var provider = new Mock<IMetadataProvider>();
+            provider.SetupGet(adapter => adapter.ProviderName).Returns(name);
+            provider.SetupGet(adapter => adapter.IsEnabled).Returns(true);
+            provider.SetupGet(adapter => adapter.SupportsAuthorSearch).Returns(true);
+            var search = provider.As<ISearchForNewAuthor>();
+            search.Setup(adapter => adapter.SearchForNewAuthor(term)).Returns(reply);
+            var supplement = provider.As<ISearchForSupplementalAuthor>();
+            supplement.Setup(adapter => adapter.SearchForSupplementalAuthor(term)).Returns(reply);
+            return (provider.Object, search, supplement);
+        }
+
+        private SearchController InteractiveAuthorSearchController(ICatalogueIdentityRepository identity, params IMetadataProvider[] providers)
+        {
+            var registry = new Mock<IMetadataProviderRegistry>();
+            registry.Setup(adapter => adapter.GetProviders()).Returns(providers);
+            registry.Setup(adapter => adapter.GetProvidersHealthStatus()).Returns(providers.ToDictionary(
+                provider => provider.ProviderName,
+                _ => new ProviderHealthStatus { Health = ProviderHealth.Healthy }));
+            var orchestrator = new MetadataProviderOrchestrator(registry.Object, new MetadataProviderTelemetryService(), LogManager.GetLogger("FixtureProviderSearch"));
+            return new SearchController(
+                orchestrator,
+                Mock.Of<IBuildFileNames>(),
+                Mock.Of<IMapCoversToLocal>(),
+                _telemetry,
+                identity,
+                Mock.Of<ISeriesRepository>(),
+                Mock.Of<IAuthorRepository>(),
+                Mock.Of<IBookRepository>());
+        }
+
         [TestCase("author")]
         [TestCase("book")]
         public void should_route_scoped_search_without_combined_fan_out(string scope)
@@ -500,7 +662,7 @@ namespace NzbDrone.Api.Test.Search
             var proxy = new Mock<IMetadataProviderOrchestrator>(MockBehavior.Strict);
             if (scope == "author")
             {
-                proxy.Setup(search => search.SearchForNewAuthor("Fixture")).Returns(new List<Author>());
+                proxy.Setup(search => search.SearchForInteractiveAuthors("Fixture", CancellationToken.None)).Returns(new List<Author>());
             }
             else
             {

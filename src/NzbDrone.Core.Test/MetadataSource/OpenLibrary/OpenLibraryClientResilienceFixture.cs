@@ -107,6 +107,23 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
+        public void supplemental_author_search_does_not_retry_a_rate_limit_or_follow_redirects()
+        {
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.OpenLibrarySearchRetryBudget).Returns(3);
+            var http = Mocker.GetMock<IHttpClient>();
+            http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns<HttpRequest>(request => new HttpResponse(
+                    request, new HttpHeader { { "Retry-After", "0" } }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests));
+
+            Subject.SearchOnePageWithoutRetry("Fixture Author", 10).RequestUnavailable.Should().BeTrue();
+
+            http.Verify(client => client.Get(It.Is<HttpRequest>(request =>
+                request.Url.Path == "/search.json" && !request.AllowAutoRedirect)), Times.Once());
+            http.VerifyNoOtherCalls();
+            ExceptionVerification.ExpectedWarns("OpenLibrary rate-limit (429) exceeded retry budget");
+        }
+
+        [Test]
         public void search_should_retry_after_rate_limit_and_succeed()
         {
             var first = new HttpResponse(new HttpRequest("https://openlibrary.org/search.json"), new HttpHeader { { "Retry-After", "0" } }, Array.Empty<byte>(), System.Net.HttpStatusCode.TooManyRequests);
