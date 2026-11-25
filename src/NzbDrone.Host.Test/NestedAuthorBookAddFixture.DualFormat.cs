@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Hosting;
 using NUnit.Framework;
 using NzbDrone.Core.Books;
 using NzbDrone.Core.Books.Commands;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.Messaging.Commands;
@@ -32,8 +34,12 @@ namespace NzbDrone.Host.Test
         [TestCase(null)]
         [TestCase("book")]
         [TestCase("author")]
-        public async Task ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen(string keepFilesRemoval)
+        [TestCase("direct")]
+        [TestCase("editor")]
+        [TestCase("recycle-error")]
+        public async Task ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen(string removal)
         {
+            var keepFiles = removal is "book" or "author";
             var profile = Directory.CreateTempSubdirectory("bibliophilarr-dual-format-");
             var appData = profile.CreateSubdirectory("data").FullName;
             var library = profile.CreateSubdirectory("library").FullName;
@@ -161,7 +167,7 @@ namespace NzbDrone.Host.Test
                         imported.Single(file => Path.GetExtension(file.Path) == ".epub").Digest.Should().Be(originalEbook);
                         imported.Single(file => Path.GetExtension(file.Path) == ".mp3").Digest.Should().Be(originalAudio);
 
-                        if (keepFilesRemoval != null)
+                        if (keepFiles)
                         {
                             var unrelatedSettings = new
                             {
@@ -179,10 +185,10 @@ namespace NzbDrone.Host.Test
                             var unrelated = await Post(client, "author", unrelatedSettings, HttpStatusCode.Created, token);
                             unrelatedAuthorId = unrelated.GetProperty("id").GetInt32();
                             await WaitForAuthorAddScan(client, commands, previousCommands, library, unrelatedAuthorId, token);
-                            var removedId = keepFilesRemoval == "author" ? authorId : bookId;
-                            using var removal = await client.DeleteAsync($"{keepFilesRemoval}/{removedId}?deleteFiles=false", token);
-                            removal.IsSuccessStatusCode.Should().BeTrue();
-                            await AssertUnmappedKeptFiles(client, host.Services, imported, authorId, bookId, unrelatedAuthorId, keepFilesRemoval, token);
+                            var removedId = removal == "author" ? authorId : bookId;
+                            using var removalResponse = await client.DeleteAsync($"{removal}/{removedId}?deleteFiles=false", token);
+                            removalResponse.IsSuccessStatusCode.Should().BeTrue();
+                            await AssertUnmappedKeptFiles(client, host.Services, imported, authorId, bookId, unrelatedAuthorId, removal, token);
                         }
                     }
                     finally
@@ -199,14 +205,74 @@ namespace NzbDrone.Host.Test
                 {
                     restarted.Services.GetRequiredService<IMetadataProviderRegistry>().GetAllProviders().Should().BeEmpty();
                     using var client = CreateClient(restarted, apiKey);
-                    if (keepFilesRemoval == null)
+                    if (!keepFiles)
                     {
                         var persisted = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
                         persisted.Should().Equal(imported);
                     }
                     else
                     {
-                        await AssertUnmappedKeptFiles(client, restarted.Services, imported, authorId, bookId, unrelatedAuthorId, keepFilesRemoval, token);
+                        await AssertUnmappedKeptFiles(client, restarted.Services, imported, authorId, bookId, unrelatedAuthorId, removal, token);
+                    }
+
+                    if (removal is "direct" or "editor" or "recycle-error")
+                    {
+                        var importedEbook = imported.Single(file => Path.GetExtension(file.Path) == ".epub").Path;
+                        var sibling = Path.Combine(Path.GetDirectoryName(importedEbook), "unrelated.epub");
+                        File.Copy(importedEbook, sibling);
+                        using (var archive = ZipFile.Open(sibling, ZipArchiveMode.Update))
+                        {
+                            WriteEpubEntry(archive, "fixture-unrelated.txt", "Unrelated fixture content");
+                        }
+
+                        var siblingDigest = FileDigest(sibling);
+                        var recyclePath = Path.Combine(profile.FullName, "recycle");
+                        if (removal == "recycle-error")
+                        {
+                            // A regular file at the destination makes directory creation fail even for a privileged user.
+                            await File.WriteAllTextAsync(recyclePath, "blocked recycle path", token);
+                        }
+                        else
+                        {
+                            Directory.CreateDirectory(recyclePath);
+                        }
+
+                        var config = restarted.Services.GetRequiredService<IConfigService>();
+                        config.RecycleBin = recyclePath;
+                        config.DeleteEmptyFolders = false;
+                        using var deletion = removal == "editor"
+                            ? new HttpRequestMessage(HttpMethod.Delete, "book/editor")
+                            {
+                                Content = JsonContent.Create(new { bookIds = new[] { bookId }, deleteFiles = true })
+                            }
+                            : new HttpRequestMessage(HttpMethod.Delete, $"book/{bookId}?deleteFiles=true");
+                        using var response = await client.SendAsync(deletion, token);
+
+                        if (removal == "recycle-error")
+                        {
+                            response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+                            (await response.Content.ReadAsStringAsync(token)).Should().Contain("Unable to delete book file");
+                            var afterFailure = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
+                            afterFailure.Should().Equal(imported);
+                            File.ReadAllText(recyclePath).Should().Be("blocked recycle path");
+                        }
+                        else
+                        {
+                            response.IsSuccessStatusCode.Should().BeTrue();
+                            using var deletedBook = await client.GetAsync($"book/{bookId}", token);
+                            deletedBook.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                            foreach (var file in imported)
+                            {
+                                File.Exists(file.Path).Should().BeFalse();
+                                using var deletedFile = await client.GetAsync($"bookfile/{file.FileId}", token);
+                                deletedFile.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                            }
+
+                            Directory.EnumerateFiles(recyclePath, "*", SearchOption.AllDirectories).Select(FileDigest)
+                                .Should().BeEquivalentTo(imported.Select(file => file.Digest));
+                        }
+
+                        FileDigest(sibling).Should().Be(siblingDigest);
                     }
 
                     using var database = new SQLiteConnection(new SQLiteConnectionStringBuilder
