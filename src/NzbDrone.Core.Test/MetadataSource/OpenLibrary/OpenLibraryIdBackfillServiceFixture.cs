@@ -78,8 +78,9 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
             Mocker.GetMock<IAuthorMetadataService>().Verify(x => x.UpsertMany(It.IsAny<List<AuthorMetadata>>()), Times.Never);
         }
 
-        [Test]
-        public void execute_should_continue_after_partial_lookup_failure_and_update_remaining_items()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void execute_should_continue_after_partial_lookup_failure_and_update_remaining_items(bool missingResult)
         {
             var metadataOne = new AuthorMetadata { Id = 100, ForeignAuthorId = "legacy-a", Name = "Author A" };
             var metadataTwo = new AuthorMetadata { Id = 200, ForeignAuthorId = "legacy-b", Name = "Author B" };
@@ -103,7 +104,7 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
 
             Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchByIsbn("1111111111111"))
-                .Returns(new List<Book>());
+                .Returns(missingResult ? null : new List<Book>());
 
             Mocker.GetMock<IMetadataProviderOrchestrator>()
                 .Setup(x => x.SearchByIsbn("2222222222222"))

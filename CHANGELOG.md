@@ -16,6 +16,8 @@ process.
 
 ### Fixed
 
+- Follow verified Open Library ISBN redirects and continue the work ID backfill
+  when an ISBN lookup returns no match.
 - Save a new book and its editions together. If an edition already belongs to
   another book, keep the existing data and import exclusions.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
