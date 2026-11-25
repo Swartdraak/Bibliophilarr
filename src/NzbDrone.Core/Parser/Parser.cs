@@ -473,9 +473,9 @@ namespace NzbDrone.Core.Parser
                 var authorName = author.Name == "Various Authors" ? "VA" : author.Name.RemoveAccent();
 
                 Logger.Debug("Parsing string '{0}' using search criteria author: '{1}' books: '{2}'",
-                             title,
-                             authorName.RemoveAccent(),
-                             string.Join(", ", books.Select(a => a.Title.RemoveAccent())));
+                             LogSanitizer.Sanitize(title),
+                             LogSanitizer.Sanitize(authorName.RemoveAccent()),
+                             LogSanitizer.Sanitize(string.Join(", ", books.Select(a => a.Title.RemoveAccent()))));
 
                 var releaseTitle = RemoveFileExtension(title);
 
@@ -547,11 +547,11 @@ namespace NzbDrone.Core.Parser
             {
                 if (!title.ToLower().Contains("password") && !title.ToLower().Contains("yenc"))
                 {
-                    Logger.Error(e, "An error has occurred while trying to parse {0}", title);
+                    Logger.Error(e, "An error has occurred while trying to parse {0}", LogSanitizer.Sanitize(title));
                 }
             }
 
-            Logger.Debug("Unable to parse {0}", title);
+            Logger.Debug("Unable to parse {0}", LogSanitizer.Sanitize(title));
             return null;
         }
 
@@ -588,7 +588,7 @@ namespace NzbDrone.Core.Parser
                     return null;
                 }
 
-                Logger.Debug("Parsing string '{0}'", title);
+                Logger.Debug("Parsing string '{0}'", LogSanitizer.Sanitize(title));
 
                 var releaseTitle = RemoveFileExtension(title);
 
@@ -679,11 +679,11 @@ namespace NzbDrone.Core.Parser
             {
                 if (!title.ToLower().Contains("password") && !title.ToLower().Contains("yenc"))
                 {
-                    Logger.Error(e, "An error has occurred while trying to parse {0}", title);
+                    Logger.Error(e, "An error has occurred while trying to parse {0}", LogSanitizer.Sanitize(title));
                 }
             }
 
-            Logger.Debug("Unable to parse {0}", title);
+            Logger.Debug("Unable to parse {0}", LogSanitizer.Sanitize(title));
             return null;
         }
 
@@ -996,7 +996,7 @@ namespace NzbDrone.Core.Parser
 
             if (RejectHashedReleasesRegex.Any(v => v.IsMatch(titleWithoutExtension)))
             {
-                Logger.Debug("Rejected Hashed Release Title: " + title);
+                Logger.Debug("Rejected Hashed Release Title: {0}", LogSanitizer.Sanitize(title));
                 return false;
             }
 

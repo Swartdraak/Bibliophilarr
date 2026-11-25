@@ -601,6 +601,7 @@ process.
 
 ### Security
 
+- Normalize book title and quality text in parser diagnostics.
 - Restrict URL base redirects to local paths while preserving the request
   method and query.
 - Normalize request method and client information before writing HTTP logs.
