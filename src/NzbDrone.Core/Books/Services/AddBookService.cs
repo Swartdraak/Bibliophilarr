@@ -31,6 +31,7 @@ namespace NzbDrone.Core.Books
         private readonly IBookService _bookService;
         private readonly IMetadataProviderOrchestrator _orchestrator;
         private readonly IImportListExclusionService _importListExclusionService;
+        private readonly ICatalogueIdentityRepository _catalogueIdentity;
         private readonly Logger _logger;
 
         public AddBookService(IAuthorService authorService,
@@ -38,6 +39,7 @@ namespace NzbDrone.Core.Books
                                IBookService bookService,
                                IMetadataProviderOrchestrator orchestrator,
                                IImportListExclusionService importListExclusionService,
+                               ICatalogueIdentityRepository catalogueIdentity,
                                Logger logger)
         {
             _authorService = authorService;
@@ -45,6 +47,7 @@ namespace NzbDrone.Core.Books
             _bookService = bookService;
             _orchestrator = orchestrator;
             _importListExclusionService = importListExclusionService;
+            _catalogueIdentity = catalogueIdentity;
             _logger = logger;
         }
 
@@ -110,7 +113,7 @@ namespace NzbDrone.Core.Books
                 }
             }
             else if (owner is not { Id: > 0, AuthorMetadataId: > 0 } ||
-                     owner.Metadata?.Value?.ForeignAuthorId != providerAuthor.ForeignAuthorId)
+                     !MatchesExactEditionOwner(owner, providerBook.ForeignBookId, authorSourceId))
             {
                 throw InvalidExactEditionAuthor();
             }
@@ -150,6 +153,25 @@ namespace NzbDrone.Core.Books
             book.Author = newAuthor;
             book.AuthorMetadata = providerAuthor;
             return _addAuthorService.AddNewAuthorWithBook(newAuthor, book, doRefresh: true);
+        }
+
+        private bool MatchesExactEditionOwner(Author owner, string workId, string authorSourceId)
+        {
+            var primary = owner.Metadata?.Value?.ForeignAuthorId;
+            if (primary == authorSourceId)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(primary) || !IsSourceAuthor(workId, authorSourceId))
+            {
+                return false;
+            }
+
+            var source = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Author, authorSourceId, null);
+            return source != null && _catalogueIdentity.GetSources(CatalogueEntityKind.Author, owner.AuthorMetadataId)
+                .Any(candidate => candidate.Provider == source.Provider && candidate.ProviderId == source.ProviderId &&
+                                  candidate.Evidence == AuthorCanonicalizationService.BibliographyEvidence);
         }
 
         private static ValidationException InvalidExactEditionAuthor()

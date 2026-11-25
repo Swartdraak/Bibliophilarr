@@ -258,6 +258,71 @@ namespace NzbDrone.Core.Test.BooksTests
             bookService.VerifyNoOtherCalls();
         }
 
+        [TestCase("verified association", true)]
+        [TestCase("legacy association", false)]
+        [TestCase("missing association", false)]
+        [TestCase("different provider", false)]
+        [TestCase("different provider ID", false)]
+        [TestCase("different numeric owner", false)]
+        public void should_accept_only_the_exact_corroborated_source_of_the_stored_scalar_author(string scenario, bool accepted)
+        {
+            const string workId = "openlibrary:work:OL101W";
+            const string authorSource = "openlibrary:author:OL23A";
+            const string editionId = "openlibrary:edition:OL202M";
+            var primary = new AuthorMetadata { Id = 24, ForeignAuthorId = "hardcover:author:802", Name = "Stored author" };
+            var owner = new Author { Id = 42, AuthorMetadataId = primary.Id, Metadata = primary };
+            var remoteAuthor = new AuthorMetadata { ForeignAuthorId = authorSource, Name = "Provider author" };
+            var edition = new Edition { ForeignEditionId = editionId, Format = "Ebook", IsEbook = true };
+            var request = RequestScalarFirstBook(workId, editionId, authorSource);
+            request.Author.Value.Id = owner.Id;
+            var source = new CatalogueSourceAssociation
+            {
+                Provider = scenario == "different provider" ? "Hardcover" : "OpenLibrary",
+                ProviderId = scenario == "different provider ID" ? "OL24A" : "OL23A",
+                Evidence = scenario == "legacy association"
+                    ? CatalogueIdentityRepository.LegacyLinkedEvidence
+                    : AuthorCanonicalizationService.BibliographyEvidence
+            };
+
+            Mocker.GetMock<IAuthorService>().Setup(service => service.FindById(authorSource)).Returns(owner);
+            Mocker.GetMock<IMetadataProviderOrchestrator>().Setup(service => service.GetBookInfo(WorkId))
+                .Returns(ScalarProviderResult(workId, remoteAuthor, edition, new List<AuthorMetadata> { remoteAuthor }));
+            var identity = Mocker.GetMock<ICatalogueIdentityRepository>();
+            identity.Setup(repository => repository.GetSources(CatalogueEntityKind.Author, owner.AuthorMetadataId))
+                .Returns(scenario == "missing association" ? Array.Empty<CatalogueSourceAssociation>() : new[] { source });
+            var books = Mocker.GetMock<IBookService>();
+            var exclusions = Mocker.GetMock<IImportListExclusionService>();
+
+            if (accepted)
+            {
+                var saved = Subject.AddBookByExactEdition(request, owner.Id);
+                saved.Author.Value.Should().BeSameAs(owner);
+                saved.AuthorMetadata.Value.Should().BeSameAs(primary);
+                saved.AuthorMetadataId.Should().Be(owner.AuthorMetadataId);
+                saved.Editions.Value.Should().ContainSingle().Which.Should().BeSameAs(edition);
+                edition.ManualAdd.Should().BeTrue();
+                edition.Monitored.Should().BeTrue();
+                books.Verify(service => service.FindById(workId), Times.Once());
+                books.Verify(service => service.AddBook(saved, true), Times.Once());
+                exclusions.Verify(service => service.Delete(workId), Times.Once());
+                exclusions.Verify(service => service.Delete(authorSource), Times.Once());
+            }
+            else
+            {
+                var ownerClaim = scenario == "different numeric owner" ? owner.Id + 1 : owner.Id;
+                var add = () => Subject.AddBookByExactEdition(request, ownerClaim);
+                add.Should().Throw<ValidationException>().Which.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("Author.ForeignAuthorId");
+            }
+
+            var allowedSourceReads = scenario == "different numeric owner" ? Times.Never() : Times.AtMostOnce();
+            identity.Verify(repository => repository.GetSources(CatalogueEntityKind.Author, owner.AuthorMetadataId),
+                accepted ? Times.Once() : allowedSourceReads);
+            identity.VerifyNoOtherCalls();
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            books.VerifyNoOtherCalls();
+            exclusions.VerifyNoOtherCalls();
+        }
+
         private static Tuple<string, Book, List<AuthorMetadata>> ScalarProviderResult(
             string workId, AuthorMetadata author, Edition edition, List<AuthorMetadata> authors)
         {

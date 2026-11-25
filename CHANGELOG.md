@@ -68,7 +68,8 @@ process.
   an edition conflict leaves the catalogue unchanged.
 - Add a verified exact provider edition through the Add Book API when the
   request omits the edition list. For a verified new author, save the author,
-  format profiles, work, and edition together.
+  format profiles, work, and edition together. Reuse an existing author when
+  the selected source is a verified alternate for that author.
 - Cache a verified alternate Hardcover edition cover when the primary cover
   is missing.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
