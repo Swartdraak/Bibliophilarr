@@ -1,5 +1,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Extensions;
+using Microsoft.AspNetCore.Http.HttpResults;
 using NzbDrone.Common.Extensions;
 
 namespace Bibliophilarr.Http.Middleware
@@ -19,8 +21,20 @@ namespace Bibliophilarr.Http.Middleware
         {
             if (_urlBase.IsNotNullOrWhiteSpace() && context.Request.PathBase.Value.IsNullOrWhiteSpace())
             {
-                context.Response.Redirect($"{_urlBase}{context.Request.Path}{context.Request.QueryString}");
-                context.Response.StatusCode = 307;
+                if (!_urlBase.StartsWith('/'))
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    return;
+                }
+
+                var destination = UriHelper.BuildRelative(new PathString(_urlBase), context.Request.Path, context.Request.QueryString);
+                if (!RedirectHttpResult.IsLocalUrl(destination))
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    return;
+                }
+
+                await TypedResults.LocalRedirect(destination, preserveMethod: true).ExecuteAsync(context);
 
                 return;
             }
