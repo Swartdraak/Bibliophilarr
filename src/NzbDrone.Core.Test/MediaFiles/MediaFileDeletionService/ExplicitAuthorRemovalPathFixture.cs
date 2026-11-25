@@ -59,7 +59,7 @@ namespace NzbDrone.Core.Test.MediaFiles.MediaFileDeletionService
             _directory.Setup(directory => directory.EnumerateFileSystemInfos("*", It.IsAny<EnumerationOptions>()))
                 .Returns(new IFileSystemInfo[] { child.Object });
 
-            var error = Assert.Throws<NzbDroneClientException>(() => Subject.PreflightAuthorRemoval(_author));
+            var error = Assert.Throws<NzbDroneClientException>(() => Subject.ValidateLibraryFolderRemoval(_author));
 
             Assert.That(error.StatusCode, Is.EqualTo(HttpStatusCode.Conflict));
             child.Verify(directory => directory.EnumerateFileSystemInfos(It.IsAny<string>(), It.IsAny<EnumerationOptions>()), Times.Never());
@@ -69,7 +69,7 @@ namespace NzbDrone.Core.Test.MediaFiles.MediaFileDeletionService
         [Test]
         public void should_keep_the_existing_recycle_operation_for_an_ordinary_folder()
         {
-            Subject.PreflightAuthorRemoval(_author);
+            Subject.ValidateLibraryFolderRemoval(_author);
             Subject.HandleAsync(new AuthorDeletedEvent(_author, true, false));
 
             _disk.Verify(disk => disk.GetDirectoryInfo(_root.Path), Times.Never());
@@ -79,7 +79,7 @@ namespace NzbDrone.Core.Test.MediaFiles.MediaFileDeletionService
         [Test]
         public void should_recheck_the_registered_root_before_the_recycle_operation()
         {
-            Subject.PreflightAuthorRemoval(_author);
+            Subject.ValidateLibraryFolderRemoval(_author);
             _disk.Setup(disk => disk.FolderExists(_root.Path)).Returns(false);
 
             Subject.HandleAsync(new AuthorDeletedEvent(_author, true, false));

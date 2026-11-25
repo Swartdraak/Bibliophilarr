@@ -24,7 +24,7 @@ namespace NzbDrone.Core.MediaFiles
         void DeleteTrackFile(Author author, BookFile bookFile);
         void DeleteTrackFile(BookFile bookFile, string subfolder = "");
         void DeleteFilesForExplicitBookRemoval(int bookId);
-        void PreflightAuthorRemoval(Author author);
+        void ValidateLibraryFolderRemoval(Author author);
     }
 
     public class MediaFileDeletionService : IDeleteMediaFiles,
@@ -286,12 +286,12 @@ namespace NzbDrone.Core.MediaFiles
             }
         }
 
-        public void PreflightAuthorRemoval(Author author)
+        public void ValidateLibraryFolderRemoval(Author author)
         {
-            ValidateAuthorRemovalRoot(author);
+            VerifyRemovalPath(author);
         }
 
-        private RootFolder ValidateAuthorRemovalRoot(Author author)
+        private RootFolder VerifyRemovalPath(Author author)
         {
             var path = author.Path;
             var root = !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path) &&
@@ -330,7 +330,7 @@ namespace NzbDrone.Core.MediaFiles
                 // The registered root itself may be an intentionally configured alias.
                 for (var current = Path.TrimEndingDirectorySeparator(path); !current.PathEquals(root.Path); current = Path.GetDirectoryName(current))
                 {
-                    RejectLinkedAuthorPath(_diskProvider.GetDirectoryInfo(current));
+                    RejectLinkedRemovalPath(_diskProvider.GetDirectoryInfo(current));
                 }
 
                 // The legacy recycle operation is recursive. Inspect each child before walking into it.
@@ -344,7 +344,7 @@ namespace NzbDrone.Core.MediaFiles
                     {
                         foreach (var child in current.EnumerateFileSystemInfos("*", options))
                         {
-                            RejectLinkedAuthorPath(child);
+                            RejectLinkedRemovalPath(child);
                             if (child is IDirectoryInfo childDirectory)
                             {
                                 pending.Push(childDirectory);
@@ -361,7 +361,7 @@ namespace NzbDrone.Core.MediaFiles
             return root;
         }
 
-        private static void RejectLinkedAuthorPath(IFileSystemInfo path)
+        private static void RejectLinkedRemovalPath(IFileSystemInfo path)
         {
             if (path.LinkTarget != null || (path.Exists && (path.Attributes & FileAttributes.ReparsePoint) != 0))
             {
@@ -398,7 +398,7 @@ namespace NzbDrone.Core.MediaFiles
             RootFolder root;
             try
             {
-                root = ValidateAuthorRemovalRoot(message.Author);
+                root = VerifyRemovalPath(message.Author);
             }
             catch (NzbDroneClientException exception)
             {

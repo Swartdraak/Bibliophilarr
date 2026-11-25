@@ -191,7 +191,7 @@ namespace Bibliophilarr.Api.V1.Author
         {
             if (deleteFiles)
             {
-                mediaFileDeletion.PreflightAuthorRemoval(_authorService.GetAuthor(id));
+                mediaFileDeletion.ValidateLibraryFolderRemoval(_authorService.GetAuthor(id));
             }
 
             _authorService.DeleteAuthor(id, deleteFiles, addImportListExclusion);

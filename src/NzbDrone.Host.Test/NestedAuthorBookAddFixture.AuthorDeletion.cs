@@ -119,6 +119,14 @@ namespace NzbDrone.Host.Test
 
                     if (unavailableRoot)
                     {
+                        using var anonymous = CreateClient(host, apiKey);
+                        anonymous.DefaultRequestHeaders.Remove("X-Api-Key");
+                        foreach (var deleteFiles in new[] { "false", "true" })
+                        {
+                            using var unauthenticated = await anonymous.DeleteAsync($"author/{removedId}?deleteFiles={deleteFiles}", token);
+                            unauthenticated.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+                        }
+
                         var offline = Path.Combine(directory.FullName, "offline-root");
                         Directory.Move(library, offline);
                         try
