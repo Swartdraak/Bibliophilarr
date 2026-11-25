@@ -246,6 +246,38 @@ namespace NzbDrone.Core.Test.MetadataSource
         }
 
         [Test]
+        public void should_install_the_fallback_server_error_window_before_returning_from_the_adapter()
+        {
+            const string bookId = "googlebooks:work:missing-volume";
+            var clock = new FixtureTimeProvider();
+            var http = Mocker.GetMock<IHttpClient>();
+            var request = new HttpRequest("https://example.test");
+            var headers = new HttpHeader { ContentType = "application/json", ["Retry-After"] = "3600" };
+            http.SetupSequence(client => client.Get(It.IsAny<HttpRequest>()))
+                .Returns(new HttpResponse(request, headers, "{}", HttpStatusCode.ServiceUnavailable))
+                .Returns(new HttpResponse(request, headers, "{}", HttpStatusCode.NotFound));
+            var provider = new GoogleBooksFallbackSearchProvider(
+                Mocker.GetMock<IConfigService>().Object,
+                http.Object,
+                Mocker.Resolve<ICacheManager>(),
+                LogManager.GetCurrentClassLogger(),
+                clock);
+
+            Action initial = () => provider.Search("Fixture book", "Fixture Author");
+            initial.Should().Throw<GoogleBooksServerErrorException>();
+            provider.RequestCooldownUntilUtc.Should().Be(clock.UtcNow.UtcDateTime.AddMinutes(2));
+
+            clock.UtcNow = clock.UtcNow.AddSeconds(119);
+            Action lookup = () => provider.GetBookInfo(bookId);
+            lookup.Should().Throw<MetadataProviderUnavailableException>().WithInnerException<GoogleBooksRequestOnCooldownException>();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Once());
+
+            clock.UtcNow = clock.UtcNow.AddSeconds(1);
+            lookup.Should().Throw<BookNotFoundException>();
+            http.Verify(client => client.Get(It.IsAny<HttpRequest>()), Times.Exactly(2));
+        }
+
+        [Test]
         public void should_admit_a_google_request_exactly_when_the_shared_cooldown_expires()
         {
             const string bookId = "googlebooks:work:fixture-volume";

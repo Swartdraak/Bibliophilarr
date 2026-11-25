@@ -41,6 +41,8 @@ namespace NzbDrone.Core.MetadataSource
         // Number of consecutive failures before the circuit breaker opens.
         private const int CircuitBreakerFailureThreshold = 3;
 
+        internal static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
+
         // How long the circuit breaker stays open before allowing a probe request.
         private static readonly TimeSpan CircuitBreakerBreakDuration = TimeSpan.FromMinutes(2);
 
@@ -52,9 +54,6 @@ namespace NzbDrone.Core.MetadataSource
 
         // How long to suppress all requests after the provider becomes unhealthy.
         private static readonly TimeSpan UnhealthySuppression = TimeSpan.FromMinutes(10);
-
-        // Cooldown after receiving a 5xx server error before retrying.
-        private static readonly TimeSpan ServerErrorCooldown = TimeSpan.FromMinutes(2);
 
         // Provider health represents the remaining delay as integer seconds.
         private static readonly TimeSpan MaximumRetryAfterCooldown = TimeSpan.FromSeconds(int.MaxValue);
@@ -207,8 +206,10 @@ namespace NzbDrone.Core.MetadataSource
                     _providerTelemetryService.RecordFailure(provider.ProviderName, FallbackSearchOperation, e);
                 }
 
-                SetCooldown(provider.ProviderName, ServerErrorCooldown);
-                UpdateRateLimitHealth(provider, rateLimitSnapshot, ServerErrorCooldown);
+                // Google fallback 5xx already installed its deadline under the transport gate.
+                var cooldown = e is GoogleBooksServerErrorException && google != null ? TimeSpan.Zero : ServerErrorCooldown;
+                SetCooldown(provider.ProviderName, cooldown);
+                UpdateRateLimitHealth(provider, rateLimitSnapshot, cooldown);
                 return new List<Book>();
             }
             catch (Exception e)
