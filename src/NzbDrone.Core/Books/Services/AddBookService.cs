@@ -55,7 +55,8 @@ namespace NzbDrone.Core.Books
 
         public Book AddBookByExactEdition(Book book, int claimedAuthorId)
         {
-            var provider = GetBookMetadata(book.ForeignBookId);
+            var lookupId = OpenLibraryIdNormalizer.NormalizeWorkId(book.ForeignBookId) ?? book.ForeignBookId;
+            var provider = GetBookMetadata(book.ForeignBookId, lookupId);
             var providerBook = provider?.Item2;
             if (providerBook == null || providerBook.ForeignBookId != book.ForeignBookId ||
                 providerBook.TitleSlug != providerBook.ForeignBookId.ToUrlSlug())
@@ -126,7 +127,7 @@ namespace NzbDrone.Core.Books
             }
 
             return workId.StartsWith("openlibrary:work:", StringComparison.Ordinal) &&
-                   OpenLibraryIdNormalizer.NormalizeWorkId(workId)?.EndsWith('W') == true &&
+                   IsOpenLibraryToken(OpenLibraryIdNormalizer.NormalizeWorkId(workId), 'W') &&
                    OpenLibraryIdNormalizer.NormalizeEditionId(editionId) != null;
         }
 
@@ -241,11 +242,23 @@ namespace NzbDrone.Core.Books
             }
 
             var editionId = selectedEdition.ForeignEditionId;
+            var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(newBook.ForeignBookId);
+            var resolvesWorkMarker = requireSelectedEdition &&
+                                     IsOpenLibraryToken(normalizedBookId, 'W') &&
+                                     string.Equals(newBook.ForeignBookId, $"openlibrary:work:{normalizedBookId}", StringComparison.OrdinalIgnoreCase) &&
+                                     string.Equals(editionId, newBook.ForeignBookId, StringComparison.OrdinalIgnoreCase) &&
+                                     string.Equals(newBook.ForeignEditionId, editionId, StringComparison.OrdinalIgnoreCase) &&
+                                     newBook.Editions.Value.Count == 1;
 
-            var tuple = GetBookMetadata(newBook.ForeignBookId);
+            var tuple = GetBookMetadata(newBook.ForeignBookId, normalizedBookId ?? newBook.ForeignBookId);
 
             var providerEditions = tuple.Item2.Editions?.Value?.Where(edition => edition != null).ToList() ?? new List<Edition>();
-            var editionToMonitor = providerEditions.Find(edition => edition.ForeignEditionId == editionId);
+
+            // A title result's singleton Open Library work marker requests the provider's default
+            // tracked representative of that work. Explicit edition IDs still require an exact match.
+            var editionToMonitor = resolvesWorkMarker
+                ? ResolveOpenLibraryWorkEdition(newBook, tuple, providerEditions)
+                : providerEditions.Find(edition => edition.ForeignEditionId == editionId);
 
             if (requireSelectedEdition && !string.IsNullOrWhiteSpace(editionId) && editionToMonitor == null)
             {
@@ -260,12 +273,19 @@ namespace NzbDrone.Core.Books
                 {
                     throw new ValidationException(new List<ValidationFailure>
                     {
-                        new ("Editions", "The selected edition is unavailable. Search for the book again and choose an available edition.")
+                        new ("Editions", resolvesWorkMarker
+                            ? "Open Library did not verify an ebook or audiobook edition for this work. Try another result or retry later."
+                            : "The selected edition is unavailable. Search for the book again and choose an available edition.")
                     });
                 }
             }
 
             newBook.UseMetadataFrom(tuple.Item2);
+            if (resolvesWorkMarker)
+            {
+                newBook.ForeignEditionId = editionToMonitor.ForeignEditionId;
+            }
+
             newBook.Added = DateTime.UtcNow;
             newBook.Editions = providerEditions;
             providerEditions.ForEach(edition => edition.Monitored = false);
@@ -290,12 +310,11 @@ namespace NzbDrone.Core.Books
             return newBook;
         }
 
-        private Tuple<string, Book, List<AuthorMetadata>> GetBookMetadata(string foreignBookId)
+        private Tuple<string, Book, List<AuthorMetadata>> GetBookMetadata(string foreignBookId, string lookupId)
         {
             try
             {
-                var normalizedBookId = OpenLibraryIdNormalizer.NormalizeWorkId(foreignBookId) ?? foreignBookId;
-                return _orchestrator.GetBookInfo(normalizedBookId);
+                return _orchestrator.GetBookInfo(lookupId);
             }
             catch (BookNotFoundException)
             {
@@ -307,5 +326,27 @@ namespace NzbDrone.Core.Books
                                               });
             }
         }
+
+        private static Edition ResolveOpenLibraryWorkEdition(Book request, Tuple<string, Book, List<AuthorMetadata>> response, List<Edition> editions)
+        {
+            var returnedAuthor = OpenLibraryIdNormalizer.NormalizeAuthorId(response.Item1);
+            var workAuthor = OpenLibraryIdNormalizer.NormalizeAuthorId(response.Item2.AuthorMetadata?.Value?.ForeignAuthorId);
+            var suppliedAuthor = request.AuthorMetadata?.Value?.ForeignAuthorId;
+            if (!string.Equals(response.Item2.ForeignBookId, request.ForeignBookId, StringComparison.OrdinalIgnoreCase) ||
+                !IsOpenLibraryToken(returnedAuthor, 'A') ||
+                returnedAuthor != workAuthor ||
+                (!string.IsNullOrWhiteSpace(suppliedAuthor) && returnedAuthor != OpenLibraryIdNormalizer.NormalizeAuthorId(suppliedAuthor)))
+            {
+                return null;
+            }
+
+            return editions.Where(edition => OpenLibraryIdNormalizer.NormalizeEditionId(edition.ForeignEditionId) != null &&
+                                             ImportFormat.ForEdition(edition, requireExplicitFormat: true) is { } format &&
+                                             edition.IsEbook == (format == FormatType.Ebook))
+                .GetPreferredEdition();
+        }
+
+        private static bool IsOpenLibraryToken(string token, char suffix) =>
+            token is { Length: > 3 } && token.EndsWith(suffix) && token[2..^1].All(char.IsAsciiDigit);
     }
 }

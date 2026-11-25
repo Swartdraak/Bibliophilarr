@@ -106,18 +106,13 @@ jobs:
           --filter
           'FullyQualifiedName~RateLimitServiceFixture|FullyQualifiedName~ProcessProviderFixture'
 
-      # RID core targeted step.
-      # The previous filter referenced OpenLibraryIsbnAsinLookupFixture, which does
-      # not exist in src (selecting zero tests). It is replaced with
-      # OpenLibrarySearchProxyFixture, a real Core.MetadataSource fixture.
-      # AddAuthorFixture (class in src/NzbDrone.Core.Test/MusicTests/AddArtistFixture.cs)
-      # and MetadataProviderOrchestratorFixture are real and selected here.
+      # Exercise the active provider and the portable author and datastore paths.
       - name: Run RID-targeted core fixtures
         run: >-
           dotnet test NzbDrone.Core.Test/Bibliophilarr.Core.Test.csproj
           --configuration Release --verbosity minimal -p:Platform=Posix -r linux-x64
           --filter
-          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibrarySearchProxyFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture'
+          'FullyQualifiedName~AddAuthorFixture|FullyQualifiedName~MetadataProviderOrchestratorFixture|FullyQualifiedName~OpenLibraryProviderFixture|FullyQualifiedName~WhereBuilder|FullyQualifiedName~HistoryRepositoryFixture'
 
       - name: Set up Node for the browser package
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
