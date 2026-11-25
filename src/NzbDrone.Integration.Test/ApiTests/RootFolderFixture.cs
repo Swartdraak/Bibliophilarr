@@ -23,7 +23,7 @@ namespace NzbDrone.Integration.Test.ApiTests
         }
 
         [Test]
-        public void should_list_the_created_root_folder_id_and_path()
+        public void should_list_the_created_root_folder_then_remove_it_by_id()
         {
             var path = GetTempDirectory("library");
             var created = RootFolders.Post(new RootFolderResource
@@ -58,6 +58,8 @@ namespace NzbDrone.Integration.Test.ApiTests
                     }
                 }
             }
+
+            RootFolders.All().Should().NotContain(folder => folder.Id == created.Id);
         }
 
         [Test]
