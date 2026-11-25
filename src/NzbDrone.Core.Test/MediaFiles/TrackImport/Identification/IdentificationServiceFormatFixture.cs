@@ -835,13 +835,136 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             release.LocalBooks.Should().ContainSingle().Which.Should().BeSameAs(tracks.Single());
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_choose_the_typed_audiobook_in_a_perfect_same_work_tie(bool typedFirst)
+        {
+            var tracks = GivenAudioFormatScan();
+            var typed = CreateTypedAudiobookEdition();
+            GivenLocalEditionsAsCandidates(typedFirst ? new[] { typed, _audiobookEdition } : new[] { _audiobookEdition, typed });
+
+            DistanceCalculator.BookDistance(tracks, _audiobookEdition).NormalizedDistance().Should().Be(0);
+            DistanceCalculator.BookDistance(tracks, typed).NormalizedDistance().Should().Be(0);
+
+            var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
+            release.Edition.Id.Should().Be(typed.Id);
+            release.Edition.BookId.Should().Be(_book.Id);
+            release.Edition.Format.Should().Be("M4B");
+            release.Distance.NormalizedDistance().Should().Be(0);
+        }
+
+        [TestCase("different work")]
+        [TestCase("another author projection")]
+        [TestCase("already linked")]
+        [TestCase("confirmed embedded ASIN")]
+        [TestCase("different scores")]
+        [TestCase("two typed siblings")]
+        [TestCase("matched-only scan")]
+        [TestCase("download")]
+        [TestCase("explicit edition")]
+        [TestCase("explicit work")]
+        [TestCase("explicit author")]
+        public void should_keep_the_original_audiobook_match_when_the_typed_sibling_is_not_a_safe_tie(string condition)
+        {
+            var tracks = GivenAudioFormatScan();
+            var track = tracks.Single();
+            var typed = CreateTypedAudiobookEdition();
+            var candidates = new List<Edition> { _audiobookEdition, typed };
+            var overrides = new IdentificationOverrides();
+            switch (condition)
+            {
+                case "different work":
+                    typed.Book = new Book { Id = 2, CanonicalId = "other-work", Title = _book.Title, AuthorMetadataId = _book.AuthorMetadataId, AuthorMetadata = _book.AuthorMetadata };
+                    typed.BookId = typed.Book.Value.Id;
+                    break;
+                case "another author projection":
+                    typed.Book = new Book { Id = _book.Id, CanonicalId = _book.CanonicalId, Title = _book.Title, AuthorMetadataId = 9, AuthorMetadata = _book.AuthorMetadata };
+                    break;
+                case "already linked":
+                    Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                        .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _audiobookEdition.Id } });
+                    break;
+                case "confirmed embedded ASIN":
+                    track.FileTrackInfo.Asin = _audiobookEdition.Asin = typed.Asin = "B000000001";
+                    track.FileTrackInfo.AsinConfidence = 0.9;
+                    break;
+                case "different scores":
+                    track.FileTrackInfo.Publisher = _audiobookEdition.Publisher = "Original Publisher";
+                    typed.Publisher = "Different Publisher";
+                    break;
+                case "two typed siblings":
+                    var second = CreateTypedAudiobookEdition();
+                    second.Id++;
+                    second.ForeignEditionId += "-other";
+                    candidates.Add(second);
+                    break;
+                case "matched-only scan":
+                    _config.Filter = FilterFilesType.Matched;
+                    break;
+                case "download":
+                    _config.NewDownload = true;
+                    break;
+                case "explicit edition":
+                    overrides.Edition = _audiobookEdition;
+                    break;
+                case "explicit work":
+                    overrides.Book = _book;
+                    break;
+                case "explicit author":
+                    overrides.Author = _author;
+                    break;
+            }
+
+            GivenLocalEditionsAsCandidates(candidates.ToArray());
+
+            var release = Subject.Identify(tracks, overrides, _config).Single();
+            release.Edition.Id.Should().Be(_audiobookEdition.Id);
+            release.Edition.BookId.Should().Be(_book.Id);
+            release.Distance.NormalizedDistance().Should().Be(0);
+            Mocker.GetMock<ICandidateService>().Verify(service => service.GetRemoteCandidates(
+                release, overrides, It.IsAny<Func<Edition, bool>>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        private List<LocalBook> GivenAudioFormatScan()
+        {
+            _config.NewDownload = false;
+            _config.IncludeExisting = true;
+            _config.SingleRelease = false;
+            _book.CanonicalId = "test-canonical-work";
+            _book.AuthorMetadataId = 1;
+            _audiobookEdition.Title = _book.Title;
+            Mocker.GetMock<IConfigService>().Setup(s => s.EnableDualFormatTracking).Returns(true);
+            Mocker.GetMock<IMediaFileService>().Setup(service => service.GetFileWithPath(It.IsAny<List<string>>()))
+                .Returns(new List<BookFile>());
+
+            var tracks = CreateAudiobookLocalBooks();
+            var track = tracks.Single();
+            track.Path = "/media/audiobooks/Test Author - Test Book.m4b";
+            track.FileTrackInfo.BookTitle = _book.Title;
+            track.FileTrackInfo.Authors = new List<string> { _author.Name };
+            return tracks;
+        }
+
+        private Edition CreateTypedAudiobookEdition()
+        {
+            return new Edition
+            {
+                Id = 30,
+                BookId = _book.Id,
+                Book = _book,
+                Title = _book.Title,
+                Format = "M4B",
+                ForeignEditionId = "edition-typed-audiobook"
+            };
+        }
+
         [TestCase(false, FilterFilesType.None)]
         [TestCase(true, FilterFilesType.Known)]
         public void should_choose_the_physical_ebook_subformat_for_the_same_work_and_isbn(bool reverseOrder, FilterFilesType filter)
         {
             var tracks = GivenEbookSubformatScan(filter);
             var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
-            GivenEbookSubformatCandidates(reverseOrder ? new[] { azw3, _ebookEdition } : new[] { _ebookEdition, azw3 });
+            GivenLocalEditionsAsCandidates(reverseOrder ? new[] { azw3, _ebookEdition } : new[] { _ebookEdition, azw3 });
 
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
         }
@@ -889,7 +1012,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             {
                 Edition = condition == "explicit edition" ? _ebookEdition : null
             };
-            GivenEbookSubformatCandidates(_ebookEdition, azw3);
+            GivenLocalEditionsAsCandidates(_ebookEdition, azw3);
 
             Subject.Identify(tracks, overrides, _config).Single().Edition.Should().BeSameAs(_ebookEdition);
         }
@@ -900,7 +1023,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             var tracks = GivenEbookSubformatScan();
             var first = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
             var second = CreateAzw3Edition(40, _book, _ebookEdition.Isbn13);
-            GivenEbookSubformatCandidates(_ebookEdition, first, first, second);
+            GivenLocalEditionsAsCandidates(_ebookEdition, first, first, second);
 
             var release = Subject.Identify(tracks, new IdentificationOverrides(), _config).Single();
 
@@ -914,7 +1037,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
         {
             var tracks = GivenEbookSubformatScan();
             var azw3 = CreateAzw3Edition(30, _book, _ebookEdition.Isbn13);
-            GivenEbookSubformatCandidates(_ebookEdition, azw3, azw3);
+            GivenLocalEditionsAsCandidates(_ebookEdition, azw3, azw3);
 
             Subject.Identify(tracks, new IdentificationOverrides(), _config).Single().Edition.Should().BeSameAs(azw3);
         }
@@ -985,7 +1108,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
                     .Returns(new List<BookFile> { new BookFile { Path = track.Path, EditionId = _ebookEdition.Id } });
             }
 
-            GivenEbookSubformatCandidates(candidates.ToArray());
+            GivenLocalEditionsAsCandidates(candidates.ToArray());
             var overrides = new IdentificationOverrides { Book = condition == "explicit work" ? _book : null };
 
             DistanceCalculator.BookDistance(tracks, _ebookEdition).NormalizedDistance()
@@ -1034,7 +1157,7 @@ namespace NzbDrone.Core.Test.MediaFiles.TrackImport.Identification
             };
         }
 
-        private void GivenEbookSubformatCandidates(params Edition[] editions)
+        private void GivenLocalEditionsAsCandidates(params Edition[] editions)
         {
             Mocker.GetMock<ICandidateService>()
                 .Setup(service => service.GetDbCandidatesFromTags(It.IsAny<LocalEdition>(), It.IsAny<IdentificationOverrides>(), _config.IncludeExisting))

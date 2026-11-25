@@ -361,6 +361,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
             if (!config.NewDownload && config.IncludeExisting && idOverrides.Edition == null)
             {
                 RefineLocalEbookEdition(localBookRelease, localCandidates, allLocalTracks, idOverrides.Author == null && idOverrides.Book == null);
+
+                if (config.Filter == FilterFilesType.None && preferredFormat == FormatType.Audiobook &&
+                    idOverrides.Author == null && idOverrides.Book == null)
+                {
+                    RefineLocalAudiobookEdition(localBookRelease, localCandidates, allLocalTracks);
+                }
             }
 
             _logger.Debug($"Best release found in {watch.ElapsedMilliseconds}ms");
@@ -759,6 +765,51 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         private static string NormalizeAsin(string value)
         {
             return value?.Length == 10 && value.All(char.IsAsciiLetterOrDigit) ? value.ToUpperInvariant() : null;
+        }
+
+        private void RefineLocalAudiobookEdition(LocalEdition release, List<CandidateEdition> localCandidates, List<LocalBook> diskTracks)
+        {
+            if (release.LocalBooks.Count != 1 || release.Edition is not { Id: > 0, BookId: > 0, IsEbook: false } selected ||
+                ImportFormat.ForEdition(selected) != null || release.Distance.NormalizedDistance() != 0 ||
+                selected.Book?.Value is not { Id: > 0, AuthorMetadataId: > 0 } work ||
+                work.Id != selected.BookId || work.CanonicalId.IsNullOrWhiteSpace() ||
+                !localCandidates.Any(candidate => ReferenceEquals(candidate.Edition, selected)))
+            {
+                return;
+            }
+
+            var track = release.LocalBooks[0];
+            var tags = track.FileTrackInfo;
+            if (ImportFormat.ForPath(track.Path) != FormatType.Audiobook ||
+                (tags.IsbnConfidence >= 0.9 && Isbn.AsIsbn13(tags.Isbn) != null) ||
+                (tags.AsinConfidence >= 0.9 && NormalizeAsin(tags.Asin) != null))
+            {
+                return;
+            }
+
+            var matches = localCandidates.Where(candidate =>
+                    candidate.Edition.Id > 0 && candidate.Edition.Id != selected.Id && !candidate.Edition.IsEbook &&
+                    candidate.Edition.BookId == work.Id && candidate.Edition.Book?.Value is { } siblingWork &&
+                    siblingWork.Id == work.Id && siblingWork.CanonicalId == work.CanonicalId && siblingWork.AuthorMetadataId == work.AuthorMetadataId &&
+                    ImportFormat.ForEdition(candidate.Edition, requireExplicitFormat: true) == FormatType.Audiobook)
+                .DistinctBy(candidate => candidate.Edition.Id)
+                .Select(candidate => GetLocalEditionMatch(release, candidate, diskTracks))
+                .Where(match => match.Distance.NormalizedDistance() == 0 &&
+                    (match.ExtraTracks.Count == 0 || DistanceCalculator.BookDistance(release.LocalBooks, match.Edition).NormalizedDistance() == 0))
+                .Take(2)
+                .ToList();
+
+            if (matches.Count != 1 ||
+                (release.ExistingTracks.Count > 0 && DistanceCalculator.BookDistance(release.LocalBooks, selected).NormalizedDistance() != 0) ||
+                _mediaFileService.GetFileWithPath([track.Path]).Any(file => file.EditionId > 0))
+            {
+                return;
+            }
+
+            var best = matches[0];
+            release.Edition = best.Edition;
+            release.Distance = best.Distance;
+            release.ExistingTracks = best.ExtraTracks;
         }
 
         private void RefineLocalEbookEdition(LocalEdition release, List<CandidateEdition> localCandidates, List<LocalBook> diskTracks, bool allowEpubAsin)
