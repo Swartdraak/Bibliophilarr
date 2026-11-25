@@ -17,6 +17,8 @@ process.
 ### Fixed
 
 - Show kept ebooks and audiobooks in Unmapped Files after deleting their book or author.
+- Remove tracked files when explicitly deleting their book and report failures
+  before removing the book from the catalogue.
 - Keep the order set by dragging Delay Profiles and apply the new priority
   to matching releases immediately.
 - Remove an author's format profiles when deleting that author.

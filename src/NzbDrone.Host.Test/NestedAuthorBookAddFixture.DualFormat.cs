@@ -37,6 +37,7 @@ namespace NzbDrone.Host.Test
         [TestCase("direct")]
         [TestCase("editor")]
         [TestCase("recycle-error")]
+        [TestCase("second-file-error")]
         public async Task ShouldPreserveApiImportedEbookAndAudiobookAcrossHostReopen(string removal)
         {
             var keepFiles = removal is "book" or "author";
@@ -215,7 +216,7 @@ namespace NzbDrone.Host.Test
                         await AssertUnmappedKeptFiles(client, restarted.Services, imported, authorId, bookId, unrelatedAuthorId, removal, token);
                     }
 
-                    if (removal is "direct" or "editor" or "recycle-error")
+                    if (removal is "direct" or "editor" or "recycle-error" or "second-file-error")
                     {
                         var importedEbook = imported.Single(file => Path.GetExtension(file.Path) == ".epub").Path;
                         var sibling = Path.Combine(Path.GetDirectoryName(importedEbook), "unrelated.epub");
@@ -227,6 +228,8 @@ namespace NzbDrone.Host.Test
 
                         var siblingDigest = FileDigest(sibling);
                         var recyclePath = Path.Combine(profile.FullName, "recycle");
+                        var secondFile = imported.MaxBy(file => file.FileId);
+                        var blockedDestination = Path.Combine(recyclePath, Path.GetFileName(secondFile.Path));
                         if (removal == "recycle-error")
                         {
                             // A regular file at the destination makes directory creation fail even for a privileged user.
@@ -235,6 +238,11 @@ namespace NzbDrone.Host.Test
                         else
                         {
                             Directory.CreateDirectory(recyclePath);
+                        }
+
+                        if (removal == "second-file-error")
+                        {
+                            Directory.CreateDirectory(blockedDestination);
                         }
 
                         var config = restarted.Services.GetRequiredService<IConfigService>();
@@ -248,13 +256,31 @@ namespace NzbDrone.Host.Test
                             : new HttpRequestMessage(HttpMethod.Delete, $"book/{bookId}?deleteFiles=true");
                         using var response = await client.SendAsync(deletion, token);
 
-                        if (removal == "recycle-error")
+                        if (removal is "recycle-error" or "second-file-error")
                         {
                             response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
                             (await response.Content.ReadAsStringAsync(token)).Should().Contain("Unable to delete book file");
-                            var afterFailure = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
-                            afterFailure.Should().Equal(imported);
-                            File.ReadAllText(recyclePath).Should().Be("blocked recycle path");
+                            if (removal == "recycle-error")
+                            {
+                                var afterFailure = await ReadDualFormatState(client, restarted.Services, library, rootId, authorId, bookId, token);
+                                afterFailure.Should().Equal(imported);
+                                File.ReadAllText(recyclePath).Should().Be("blocked recycle path");
+                            }
+                            else
+                            {
+                                var firstFile = imported.MinBy(file => file.FileId);
+                                using var retainedBook = await client.GetAsync($"book/{bookId}", token);
+                                retainedBook.StatusCode.Should().Be(HttpStatusCode.OK);
+                                using var removedFile = await client.GetAsync($"bookfile/{firstFile.FileId}", token);
+                                removedFile.StatusCode.Should().Be(HttpStatusCode.NotFound);
+                                using var retainedFile = await client.GetAsync($"bookfile/{secondFile.FileId}", token);
+                                retainedFile.StatusCode.Should().Be(HttpStatusCode.OK);
+                                File.Exists(firstFile.Path).Should().BeFalse();
+                                FileDigest(secondFile.Path).Should().Be(secondFile.Digest);
+                                Directory.Exists(blockedDestination).Should().BeTrue();
+                                Directory.EnumerateFiles(recyclePath, "*", SearchOption.AllDirectories).Select(FileDigest)
+                                    .Should().Equal(firstFile.Digest);
+                            }
                         }
                         else
                         {

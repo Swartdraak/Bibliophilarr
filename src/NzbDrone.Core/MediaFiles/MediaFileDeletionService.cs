@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -19,6 +22,7 @@ namespace NzbDrone.Core.MediaFiles
     {
         void DeleteTrackFile(Author author, BookFile bookFile);
         void DeleteTrackFile(BookFile bookFile, string subfolder = "");
+        void DeleteFilesForExplicitBookRemoval(int bookId);
     }
 
     public class MediaFileDeletionService : IDeleteMediaFiles,
@@ -30,6 +34,7 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IDiskProvider _diskProvider;
         private readonly IRecycleBinProvider _recycleBinProvider;
         private readonly IMediaFileService _mediaFileService;
+        private readonly IMediaFileRepository _mediaFileRepository;
         private readonly IAuthorService _authorService;
         private readonly IConfigService _configService;
         private readonly IEventAggregator _eventAggregator;
@@ -40,6 +45,7 @@ namespace NzbDrone.Core.MediaFiles
         public MediaFileDeletionService(IDiskProvider diskProvider,
                                         IRecycleBinProvider recycleBinProvider,
                                         IMediaFileService mediaFileService,
+                                        IMediaFileRepository mediaFileRepository,
                                         IAuthorService authorService,
                                         IConfigService configService,
                                         IEventAggregator eventAggregator,
@@ -50,6 +56,7 @@ namespace NzbDrone.Core.MediaFiles
             _diskProvider = diskProvider;
             _recycleBinProvider = recycleBinProvider;
             _mediaFileService = mediaFileService;
+            _mediaFileRepository = mediaFileRepository;
             _authorService = authorService;
             _configService = configService;
             _eventAggregator = eventAggregator;
@@ -115,9 +122,121 @@ namespace NzbDrone.Core.MediaFiles
             _eventAggregator.PublishEvent(new DeleteCompletedEvent());
         }
 
-        private void DeleteFile(BookFile bookFile, string subfolder = "")
+        public void DeleteFilesForExplicitBookRemoval(int bookId)
         {
-            var rootFolder = _rootFolderService.GetBestRootFolder(bookFile.Path);
+            var files = _mediaFileService.GetFilesByBook(bookId);
+            var selectedIds = files.Select(file => file.Id).ToHashSet();
+            var targets = files.OrderBy(file => file.Id).Select(file => (File: file, Root: GetBookFileRoot(file.Path))).ToList();
+            var calibreRecords = targets.Where(target => target.Root.IsCalibreLibrary)
+                .GroupBy(target => (target.Root.Id, target.File.CalibreId)).ToList();
+
+            // A Calibre deletion removes the entire record, including formats held by another work.
+            foreach (var record in calibreRecords)
+            {
+                ValidateCalibreOwnership(record.First().Root, record.Key.CalibreId, selectedIds);
+            }
+
+            foreach (var target in targets)
+            {
+                ConfirmFileUnchanged(bookId, target.File, target.Root);
+            }
+
+            foreach (var target in targets.Where(target => !target.Root.IsCalibreLibrary))
+            {
+                var root = ConfirmFileUnchanged(bookId, target.File, target.Root);
+                if (_diskProvider.FileExists(target.File.Path))
+                {
+                    DeleteFile(target.File, rootFolder: root);
+                }
+
+                RemoveDeletedFileRecord(target.File);
+            }
+
+            foreach (var record in calibreRecords)
+            {
+                var first = record.First();
+                var root = ConfirmFileUnchanged(bookId, first.File, first.Root);
+                ValidateCalibreOwnership(root, record.Key.CalibreId, selectedIds);
+                foreach (var target in record.Skip(1))
+                {
+                    ConfirmFileUnchanged(bookId, target.File, target.Root);
+                }
+
+                DeleteFile(first.File, rootFolder: root);
+                foreach (var target in record)
+                {
+                    RemoveDeletedFileRecord(target.File);
+                }
+            }
+        }
+
+        private RootFolder GetBookFileRoot(string path)
+        {
+            var root = !string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path)
+                ? _rootFolderService.GetBestRootFolder(path)
+                : null;
+            if (root == null || !root.Path.IsParentPath(path) || !_diskProvider.FolderExists(root.Path))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file is outside an available registered root. Refresh before trying again.");
+            }
+
+            return root;
+        }
+
+        private RootFolder ConfirmFileUnchanged(int bookId, BookFile file, RootFolder expectedRoot)
+        {
+            var root = GetBookFileRoot(file.Path);
+            var current = _mediaFileService.GetFileWithPath(file.Path);
+            if (root.Id != expectedRoot.Id || !root.Path.PathEquals(expectedRoot.Path) || root.IsCalibreLibrary != expectedRoot.IsCalibreLibrary ||
+                (root.IsCalibreLibrary && !SameCalibreLibrary(root.CalibreSettings, expectedRoot.CalibreSettings)) ||
+                current?.Id != file.Id || current.EditionId != file.EditionId ||
+                current.Edition?.Value?.BookId != bookId || current.CalibreId != file.CalibreId ||
+                current.Size != file.Size || current.Modified != file.Modified)
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file changed during deletion. Refresh before trying again.");
+            }
+
+            var onDisk = _diskProvider.GetFileInfo(file.Path);
+            if (onDisk.Exists && (onDisk.Length != file.Size || Math.Abs((onDisk.LastWriteTimeUtc - file.Modified).TotalSeconds) > 1))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file on disk changed. Rescan it before trying again.");
+            }
+
+            return root;
+        }
+
+        private static bool SameCalibreLibrary(CalibreSettings current, CalibreSettings expected)
+        {
+            return current != null && expected != null &&
+                   (current.Host, current.Port, current.UseSsl, current.UrlBase, current.Library, current.Username) ==
+                   (expected.Host, expected.Port, expected.UseSsl, expected.UrlBase, expected.Library, expected.Username);
+        }
+
+        private void ValidateCalibreOwnership(RootFolder root, int calibreId, HashSet<int> selectedIds)
+        {
+            if (root.CalibreSettings == null || calibreId <= 0 ||
+                _mediaFileService.GetFilesWithBasePath(root.Path).Any(file => file.CalibreId == calibreId && !selectedIds.Contains(file.Id)))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "Could not verify that the Calibre record belongs only to this book.");
+            }
+        }
+
+        private void RemoveDeletedFileRecord(BookFile file)
+        {
+            if (_diskProvider.FileExists(file.Path))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.InternalServerError, "Unable to delete book file");
+            }
+
+            if (!_mediaFileRepository.DeleteMatchingFile(file))
+            {
+                throw new NzbDroneClientException(HttpStatusCode.Conflict, "A book file changed during deletion. Refresh before trying again.");
+            }
+        }
+
+        private void DeleteFile(BookFile bookFile, string subfolder = "", RootFolder rootFolder = null)
+        {
+            rootFolder ??= _rootFolderService.GetBestRootFolder(bookFile.Path);
             var isCalibre = rootFolder.IsCalibreLibrary && rootFolder.CalibreSettings != null;
 
             try
@@ -202,7 +321,7 @@ namespace NzbDrone.Core.MediaFiles
 
         public void HandleAsync(BookDeletedEvent message)
         {
-            if (message.DeleteFiles)
+            if (message.DeleteFiles && !message.MediaAlreadyRemoved)
             {
                 var files = _mediaFileService.GetFilesByBook(message.Book.Id);
                 foreach (var file in files)
