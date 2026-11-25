@@ -460,11 +460,15 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             secondary.Verify(provider => provider.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void should_report_a_local_identity_conflict_only_if_exact_fallback_cannot_resolve_it(bool canRecover)
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void should_report_a_local_identity_conflict_only_if_exact_fallback_cannot_resolve_it(bool canRecover, bool omittedPart)
         {
-            const string description = "The catalogue match omits the numbered volume.";
+            var description = omittedPart
+                ? "The catalogue match omits the numbered part in the corroborated audiobook title. Select the intended work manually."
+                : "The catalogue match omits the numbered volume.";
             const string isbn = "9781442482890";
             _idConfig.NewDownload = false;
             _idConfig.IncludeExisting = true;
@@ -493,7 +497,7 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             else
             {
                 var rejection = decision.Rejections.Should().ContainSingle().Which;
-                rejection.HoldReason.Should().Be(LibraryImportHoldReason.ProviderIdentityConflict);
+                rejection.HoldReason.Should().Be(omittedPart ? LibraryImportHoldReason.AudiobookPartOmitted : LibraryImportHoldReason.ProviderIdentityConflict);
                 rejection.Reason.Should().Be(description);
             }
         }

@@ -15,6 +15,7 @@ namespace NzbDrone.Core.DecisionEngine
         ProviderIdentityConflict = 11,
         UnverifiedEditionIdentifier = 12,
         AuthorBibliographyUnavailable = 13,
-        AuthorIdentityConfirmationRequired = 14
+        AuthorIdentityConfirmationRequired = 14,
+        AudiobookPartOmitted = 15
     }
 }

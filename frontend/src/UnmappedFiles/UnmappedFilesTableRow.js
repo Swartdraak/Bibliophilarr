@@ -25,6 +25,7 @@ const unmappedReasonLabels = {
   duplicateInScan: 'UnmappedReasonDuplicateInScan',
   conflictingIdentity: 'UnmappedReasonConflictingIdentity',
   providerIdentityConflict: 'UnmappedReasonProviderIdentityConflict',
+  audiobookPartOmitted: 'UnmappedReasonAudiobookPartOmitted',
   unverifiedEditionIdentifier: 'UnmappedReasonUnverifiedEditionIdentifier',
   authorBibliographyUnavailable: 'UnmappedReasonAuthorBibliographyUnavailable',
   authorIdentityConfirmationRequired: 'UnmappedReasonAuthorIdentityConfirmationRequired',

@@ -32,7 +32,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Identification
         // while preventing false positives from badly tagged files.
         private const double AutoAddAuthorDistanceThreshold = 0.25;
         private const string MissingNumberedVolumeDetail = "The catalogue match omits the numbered volume in the file title. Select the intended work manually.";
-        private const string MissingAuthoredAudioPartDetail = "The catalogue match omits the numbered part in the corroborated audiobook title. Select the intended work manually.";
+        internal const string MissingAuthoredAudioPartDetail = "The catalogue match omits the numbered part in the corroborated audiobook title. Select the intended work manually.";
 
         private static readonly Regex GuideSuffix = new Regex(@"^(?:\s*[:(,–—]\s*|\s+-\s+|\s+)(?:TEACHER(?:['’]S)?|TEACHERS['’]|TEACHING|STUDY|READING) GUIDE\b", RegexOptions.CultureInvariant);
         private static readonly Regex ExplicitSeriesVolume = new Regex(@"^(.+?)[\s:,(–—-]+(?:BOOK|VOL(?:UME)?\.?)[\s#]+([0-9]+)\)?$", RegexOptions.CultureInvariant);

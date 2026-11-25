@@ -31,6 +31,7 @@ namespace NzbDrone.Api.Test.Books
         [TestCase(LibraryImportHoldReason.UnverifiedEditionIdentifier, "unverifiedEditionIdentifier")]
         [TestCase(LibraryImportHoldReason.AuthorBibliographyUnavailable, "authorBibliographyUnavailable")]
         [TestCase(LibraryImportHoldReason.AuthorIdentityConfirmationRequired, "authorIdentityConfirmationRequired")]
+        [TestCase(LibraryImportHoldReason.AudiobookPartOmitted, "audiobookPartOmitted")]
         public void should_serialize_review_reasons_by_name(LibraryImportHoldReason reason, string serializedReason)
         {
             var file = new BookFile { UnmappedReason = reason };

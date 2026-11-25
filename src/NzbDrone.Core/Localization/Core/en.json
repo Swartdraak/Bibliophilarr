@@ -1225,6 +1225,7 @@
   "UnmappedReasonUnverifiedEditionIdentifier": "Another file occupies this edition. The embedded ISBN needs a verified edition.",
   "UnmappedReasonAuthorBibliographyUnavailable": "The metadata provider could not load the author’s bibliography. Rescan to retry.",
   "UnmappedReasonAuthorIdentityConfirmationRequired": "An existing catalogue author has the same name. Select the intended author manually.",
+  "UnmappedReasonAudiobookPartOmitted": "The proposed work and edition omit the numbered audiobook part.",
   "UnmappedReasonImportFailed": "File import failed. See System Logs for details.",
   "UnmappedReasonNotRecorded": "No reason recorded. Rescan to check this file.",
   "NoMatchingUnmappedFiles": "No files match the current filters.",

@@ -10,6 +10,7 @@ test.each([
   ['sameSizeAsExisting', 'UnmappedReasonSameSizeAsExisting'],
   ['conflictingIdentity', 'UnmappedReasonConflictingIdentity'],
   ['providerIdentityConflict', 'UnmappedReasonProviderIdentityConflict'],
+  ['audiobookPartOmitted', 'UnmappedReasonAudiobookPartOmitted'],
   ['authorBibliographyUnavailable', 'UnmappedReasonAuthorBibliographyUnavailable'],
   ['authorIdentityConfirmationRequired', 'UnmappedReasonAuthorIdentityConfirmationRequired'],
   [undefined, 'UnmappedReasonNotRecorded']

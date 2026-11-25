@@ -785,6 +785,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 var reason = localEdition.IdentificationHoldReason ?? (localEdition.ProviderIdentityConflictDetail == null
                     ? LibraryImportHoldReason.NoAcceptedWork
                     : LibraryImportHoldReason.ProviderIdentityConflict);
+                if (reason == LibraryImportHoldReason.ProviderIdentityConflict &&
+                    localEdition.ProviderIdentityConflictDetail == IdentificationService.MissingAuthoredAudioPartDetail)
+                {
+                    reason = LibraryImportHoldReason.AudiobookPartOmitted;
+                }
+
                 var message = reason switch
                 {
                     LibraryImportHoldReason.LowConfidence => "The match could not confidently identify a new author. Select the intended author manually.",
@@ -792,6 +798,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                     LibraryImportHoldReason.ProviderIdentityConflict or LibraryImportHoldReason.ConflictingIdentity
                         when localEdition.ProviderIdentityConflictDetail != null => localEdition.ProviderIdentityConflictDetail,
                     LibraryImportHoldReason.ProviderIdentityConflict => "Metadata provider results conflict with this file's book identity. Select the intended work manually.",
+                    LibraryImportHoldReason.AudiobookPartOmitted => IdentificationService.MissingAuthoredAudioPartDetail,
                     LibraryImportHoldReason.NoAcceptedWork when !_metadataProviders.HasConfiguredBookLookup && !_fallbackProviders.Any(provider => provider.IsFallbackEnabled) =>
                         "No book metadata provider is enabled and configured. Select a book and compatible edition from your library, or configure a metadata provider and scan again.",
                     _ => $"Couldn't find similar book for {localEdition}"
