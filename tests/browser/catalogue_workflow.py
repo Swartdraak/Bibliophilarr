@@ -540,6 +540,27 @@ def import_fixture(api, work, app_data, root, book, author):
                        202, "validate_manual_import_selection")
     assert updated["path"] == str(source) and updated["book"]["id"] == book["id"]
     assert updated["foreignEditionId"] == edition["foreignEditionId"] and not updated["rejections"]
+    omitted = {key: value for key, value in selection.items() if key != "foreignEditionId"}
+    preview = "/api/v1/manualimport?reportRejectionStatus=true"
+    inferred, = checked(api.post(preview, data=[omitted]), 202, "preview_omitted_edition")
+    assert inferred["foreignEditionId"] == edition["foreignEditionId"] and not inferred["rejections"]
+
+    source_digest = sha256(source.read_bytes()).digest()
+    missing_id = "fixture:edition:missing"
+    stale = {**selection, "foreignEditionId": missing_id}
+    held, = checked(api.post(preview, data=[stale]), 422, "preview_unavailable_selected_edition")
+    assert held["id"] == item["id"] and held["book"]["id"] == book["id"]
+    assert held["foreignEditionId"] == missing_id and held["rejections"]
+
+    missing_path_id = 101 if selection["id"] != 101 else 102
+    missing_path = {**selection, "id": missing_path_id, "path": None}
+    mixed = checked(api.post(preview, data=[missing_path, selection]), 202, "preview_missing_path_in_mixed_batch")
+    by_id = {row["id"]: row for row in mixed}
+    assert len(mixed) == 2 and set(by_id) == {missing_path["id"], selection["id"]}
+    assert "file path is required" in by_id[missing_path["id"]]["rejections"][0]["reason"]
+    assert not by_id[selection["id"]]["rejections"]
+    assert not files_for_book(api, book["id"]) and sha256(source.read_bytes()).digest() == source_digest
+
     cmd = checked(api.post("/api/v1/command", data={
         "name": "ManualImport",
         "files": [selection],

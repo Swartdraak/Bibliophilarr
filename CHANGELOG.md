@@ -125,6 +125,8 @@ process.
   and keep that file available for manual selection.
 - Keep per-file rejection reasons visible when every Manual Import selection
   is rejected. API clients can opt in to HTTP 422 for this preview.
+- Keep unavailable edition selections visible in Manual Import and ask the
+  user to select the edition again.
 - Hold an unresolved manual-import edition selection and continue importing
   valid files in the same batch. When the edition is omitted, use a compatible
   monitored edition of the selected work.

@@ -4,9 +4,9 @@ using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.MediaFiles.BookImport
 {
-    internal static class ImportFormat
+    public static class ImportFormat
     {
-        public static FormatType? ForPath(string path)
+        internal static FormatType? ForPath(string path)
         {
             if (string.IsNullOrEmpty(path))
             {
