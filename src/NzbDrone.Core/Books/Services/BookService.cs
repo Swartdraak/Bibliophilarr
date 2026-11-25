@@ -110,7 +110,15 @@ namespace NzbDrone.Core.Books
         {
             var book = _bookRepository.Get(bookId);
             book.Author.LazyLoad();
-            _bookRepository.Delete(bookId);
+            if (deleteFiles)
+            {
+                _bookRepository.Delete(bookId);
+            }
+            else
+            {
+                _bookRepository.DeleteKeepingFiles(new[] { bookId });
+            }
+
             _eventAggregator.PublishEvent(new BookDeletedEvent(book, deleteFiles, addImportListExclusion));
         }
 
@@ -318,7 +326,11 @@ namespace NzbDrone.Core.Books
         public void DeleteMany(List<Book> books)
         {
             _bookRepository.DeleteMany(books);
+            PublishDeleted(books);
+        }
 
+        private void PublishDeleted(List<Book> books)
+        {
             foreach (var book in books)
             {
                 _eventAggregator.PublishEvent(new BookDeletedEvent(book, false, false));
@@ -376,7 +388,20 @@ namespace NzbDrone.Core.Books
         public void Handle(AuthorDeletedEvent message)
         {
             var books = GetBooksByAuthorMetadataId(message.Author.AuthorMetadataId);
-            DeleteMany(books);
+            foreach (var book in books)
+            {
+                book.Author = message.Author;
+            }
+
+            if (message.DeleteFiles)
+            {
+                DeleteMany(books);
+            }
+            else
+            {
+                _bookRepository.DeleteKeepingFiles(books.Select(book => book.Id));
+                PublishDeleted(books);
+            }
         }
     }
 }

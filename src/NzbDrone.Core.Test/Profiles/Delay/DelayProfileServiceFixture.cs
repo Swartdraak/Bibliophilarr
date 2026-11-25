@@ -3,6 +3,7 @@ using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Common.Cache;
 using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Test.Framework;
 
@@ -18,6 +19,8 @@ namespace NzbDrone.Core.Test.Profiles.Delay
         [SetUp]
         public void Setup()
         {
+            Mocker.SetConstant<ICacheManager>(new CacheManager());
+
             _delayProfiles = Builder<DelayProfile>.CreateListOfSize(4)
                                                   .TheFirst(1)
                                                   .With(d => d.Order = int.MaxValue)
@@ -36,6 +39,20 @@ namespace NzbDrone.Core.Test.Profiles.Delay
             Mocker.GetMock<IDelayProfileRepository>()
                   .Setup(s => s.All())
                   .Returns(_delayProfiles);
+        }
+
+        [Test]
+        public void should_immediately_use_the_new_highest_priority_matching_profile_after_reorder()
+        {
+            _first.Tags.Add(10);
+            _last.Tags.Add(20);
+            var tags = new HashSet<int> { 10, 20 };
+
+            Subject.BestForTags(tags).Id.Should().Be(_first.Id);
+
+            Subject.Reorder(_last.Id, null);
+
+            Subject.BestForTags(tags).Id.Should().Be(_last.Id);
         }
 
         [Test]
