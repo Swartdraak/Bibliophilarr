@@ -41,7 +41,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 "mass market paperback" or "trade paperback" or "board book" or "unclassified" or "book";
         }
 
-        public static FormatType? ForEdition(Edition edition)
+        public static FormatType? ForEdition(Edition edition, bool requireExplicitFormat = false)
         {
             if (edition == null || IsExplicitlyUntracked(edition))
             {
@@ -58,7 +58,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             };
 
             // A missing or generic label with IsEbook=false does not establish audio.
-            return format ?? (edition.IsEbook ? FormatType.Ebook : null);
+            return format ?? (!requireExplicitFormat && edition.IsEbook ? FormatType.Ebook : null);
         }
     }
 }
