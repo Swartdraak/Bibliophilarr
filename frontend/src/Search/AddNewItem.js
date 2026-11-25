@@ -225,7 +225,11 @@ class AddNewItem extends Component {
                         <div key={foreignWorkId} className={styles.seriesResult}>
                           <h3>{title}</h3>
                           <p>{position ? translate('SeriesPreviewPosition', [position]) : translate('SeriesPreviewPositionUnknown')}</p>
-                          <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                          <a
+                            href={sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             {translate('SeriesOpenInventaire')}
                           </a>
                         </div>
@@ -270,7 +274,11 @@ class AddNewItem extends Component {
                             {translate('SeriesViewBooks')}
                           </Button>
                           {sourceProvider === 'Inventaire' && sourceUrl &&
-                            <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                            <a
+                              href={sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
                               {translate('SeriesOpenInventaire')}
                             </a>
                           }
