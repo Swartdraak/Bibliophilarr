@@ -93,10 +93,11 @@ recovery issue is closed.
   Seventeen works kept distinct editions and files for both formats through
   signed offline restart. Four providers were configured. Open Library and
   Google Books supplied accepted links, and Inventaire returned real fallback
-  results. Hardcover stayed on its own cooldown. Three enrichment commands
-  finished unsuccessfully, and no series was populated.
+  results. Hardcover's retained cooldown prevented upstream access. Two bulk
+  author refreshes and one bulk book refresh finished unsuccessfully, and no
+  series was populated.
   [Replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7164621758)
-- Independent browser review verified the legacy Terry Mancour URL, stable
+- An earlier browser review verified the legacy Terry Mancour URL, stable
   author and catalogue routes, separate EPUB and M4B file links, and rendered
   author, series, and book artwork. The sampled series lacked a description.
   The replay also found 14 authors with inherited ebook settings on their
