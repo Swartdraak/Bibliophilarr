@@ -1003,6 +1003,7 @@
         "tags": [
           "BookFile"
         ],
+        "description": "Returns files for the supplied author, book, file IDs or Unmapped selection. At least one selector is required.",
         "parameters": [
           {
             "name": "authorId",
@@ -1040,6 +1041,14 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "formatType",
+            "in": "query",
+            "description": "Filters results by ebook or audiobook for selected books when dual-format tracking is enabled.",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1068,6 +1077,16 @@
                   "items": {
                     "$ref": "#/components/schemas/BookFileResource"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An author, book, file ID or Unmapped selection is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
                 }
               }
             }
@@ -10449,6 +10468,23 @@
           "downloadIgnored"
         ],
         "type": "string"
+      },
+      "ErrorModel": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "Field": {
         "type": "object",
