@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using Bibliophilarr.Http;
+using Bibliophilarr.Http.ErrorManagement;
 using Bibliophilarr.Http.REST;
 using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Core.Books;
@@ -16,7 +17,7 @@ using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Http.REST.Attributes;
 using NzbDrone.SignalR;
-using BadRequestException = NzbDrone.Core.Exceptions.BadRequestException;
+using BadRequestException = Bibliophilarr.Http.REST.BadRequestException;
 using HttpStatusCode = System.Net.HttpStatusCode;
 
 namespace Bibliophilarr.Api.V1.BookFiles
@@ -73,6 +74,8 @@ namespace Bibliophilarr.Api.V1.BookFiles
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(List<BookFileResource>), (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(ErrorModel), (int)HttpStatusCode.BadRequest)]
         public List<BookFileResource> GetBookFiles(int? authorId, [FromQuery] List<int> bookFileIds, [FromQuery(Name = "bookId")] List<int> bookIds, bool? unmapped, [FromQuery] string formatType = null)
         {
             if (!authorId.HasValue && !bookFileIds.Any() && !bookIds.Any() && !unmapped.HasValue)
