@@ -23,6 +23,8 @@ process.
   the canonical setting and saved defaults in precedence order.
 - Save a new book and its editions together. If an edition already belongs to
   another book, keep the existing data and import exclusions.
+- Add an exact provider edition through the Add Book API for an existing author
+  when the request omits the edition list.
 - Preserve stored bibliographies when Hardcover's exact author lookup or Open
   Library's works feed cannot verify the books shown in search.
 - Resolve Open Library title results to a verified ebook or audiobook edition

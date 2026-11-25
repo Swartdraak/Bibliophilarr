@@ -64,6 +64,61 @@ namespace NzbDrone.Core.Test.BooksTests
             result.Editions.Value.Where(edition => edition.Monitored).Should().ContainSingle().Which.Should().BeSameAs(_second);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_report_the_requested_work_field_for_a_missing_provider_work(bool scalar)
+        {
+            const string workId = "hardcover:work:301";
+            const string editionId = "hardcover:source-edition:302";
+            var request = new Book
+            {
+                ForeignBookId = workId,
+                ForeignEditionId = editionId,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Monitored = true } }
+            };
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(provider => provider.GetBookInfo(workId))
+                .Throws(new BookNotFoundException(workId));
+
+            var add = () => scalar ? Subject.AddBookByExactEdition(request, 0) : Subject.AddBook(request);
+            var error = add.Should().Throw<ValidationException>().Which;
+
+            var failure = error.Errors.Should().ContainSingle().Which;
+            failure.PropertyName.Should().Be(nameof(Book.ForeignBookId));
+            failure.AttemptedValue.Should().Be(workId);
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+        }
+
+        [TestCase("hardcover:edition:301", "Ebook", true)]
+        [TestCase("hardcover:source-edition:302", "Print", false)]
+        [TestCase("hardcover:source-edition:302", null, true)]
+        [TestCase("hardcover:source-edition:302", "Audiobook", true)]
+        public void should_reject_scalar_editions_without_a_verified_source_and_consistent_media_format(string editionId, string format, bool isEbook)
+        {
+            const string workId = "hardcover:work:301";
+            var author = new AuthorMetadata { ForeignAuthorId = "hardcover:author:41" };
+            var work = new Book
+            {
+                ForeignBookId = workId,
+                TitleSlug = "hardcover-work-301",
+                AuthorMetadata = author,
+                Editions = new List<Edition> { new Edition { ForeignEditionId = editionId, Format = format, IsEbook = isEbook } }
+            };
+            Mocker.GetMock<IMetadataProviderOrchestrator>()
+                .Setup(service => service.GetBookInfo(workId))
+                .Returns(Tuple.Create(author.ForeignAuthorId, work, new List<AuthorMetadata> { author }));
+
+            var add = () => Subject.AddBookByExactEdition(new Book { ForeignBookId = workId, ForeignEditionId = editionId }, 0);
+
+            add.Should().Throw<ValidationException>().Which.Errors.Should().ContainSingle().Which.PropertyName.Should().Be("ForeignEditionId");
+            Mocker.GetMock<IAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IAddAuthorService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IImportListExclusionService>().VerifyNoOtherCalls();
+            Mocker.GetMock<IBookService>().VerifyNoOtherCalls();
+        }
+
         [Test]
         public void should_keep_exclusions_when_the_book_could_not_be_saved()
         {
