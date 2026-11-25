@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Indexers;
@@ -53,13 +54,13 @@ namespace NzbDrone.Core.Download
 
                 nzbData = response.ResponseData;
 
-                _logger.Debug("Downloaded nzb for release '{0}' finished ({1} bytes from {2})", remoteBook.Release.Title, nzbData.Length, url);
+                _logger.Debug("Downloaded nzb for release '{0}' finished ({1} bytes from {2})", LogSanitizer.Sanitize(remoteBook.Release.Title), nzbData.Length, url);
             }
             catch (HttpException ex)
             {
                 if (ex.Response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _logger.Error(ex, "Downloading nzb file for book '{0}' failed since it no longer exists ({1})", remoteBook.Release.Title, url);
+                    _logger.Error(ex, "Downloading nzb file for book '{0}' failed since it no longer exists ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
                     throw new ReleaseUnavailableException(remoteBook.Release, "Downloading torrent failed", ex);
                 }
 
@@ -69,21 +70,21 @@ namespace NzbDrone.Core.Download
                 }
                 else
                 {
-                    _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", remoteBook.Release.Title, url);
+                    _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
                 }
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading nzb failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", remoteBook.Release.Title, url);
+                _logger.Error(ex, "Downloading nzb for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), url);
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading nzb failed", ex);
             }
 
             _nzbValidationService.Validate(filename, nzbData);
 
-            _logger.Info("Adding report [{0}] to the queue.", remoteBook.Release.Title);
+            _logger.Info("Adding report [{0}] to the queue.", LogSanitizer.Sanitize(remoteBook.Release.Title));
             return AddFromNzbFile(remoteBook, filename, nzbData);
         }
     }

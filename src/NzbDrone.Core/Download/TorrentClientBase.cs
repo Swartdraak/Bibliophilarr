@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Common.Instrumentation;
 using NzbDrone.Core.Blocklisting;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Exceptions;
@@ -166,13 +167,13 @@ namespace NzbDrone.Core.Download
 
                 torrentFile = response.ResponseData;
 
-                _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from {2})", remoteBook.Release.Title, torrentFile.Length, torrentUrl);
+                _logger.Debug("Downloading torrent for release '{0}' finished ({1} bytes from {2})", LogSanitizer.Sanitize(remoteBook.Release.Title), torrentFile.Length, torrentUrl);
             }
             catch (HttpException ex)
             {
                 if (ex.Response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    _logger.Error(ex, "Downloading torrent file for book '{0}' failed since it no longer exists ({1})", remoteBook.Release.Title, torrentUrl);
+                    _logger.Error(ex, "Downloading torrent file for book '{0}' failed since it no longer exists ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), torrentUrl);
                     throw new ReleaseUnavailableException(remoteBook.Release, "Downloading torrent failed", ex);
                 }
 
@@ -182,14 +183,14 @@ namespace NzbDrone.Core.Download
                 }
                 else
                 {
-                    _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteBook.Release.Title, torrentUrl);
+                    _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), torrentUrl);
                 }
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading torrent failed", ex);
             }
             catch (WebException ex)
             {
-                _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", remoteBook.Release.Title, torrentUrl);
+                _logger.Error(ex, "Downloading torrent file for release '{0}' failed ({1})", LogSanitizer.Sanitize(remoteBook.Release.Title), torrentUrl);
 
                 throw new ReleaseDownloadException(remoteBook.Release, "Downloading torrent failed", ex);
             }
@@ -223,7 +224,7 @@ namespace NzbDrone.Core.Download
             }
             catch (FormatException ex)
             {
-                _logger.Error(ex, "Failed to parse magnetlink for release '{0}': '{1}'", remoteBook.Release.Title, magnetUrl);
+                _logger.Error(ex, "Failed to parse magnetlink for release '{0}': '{1}'", LogSanitizer.Sanitize(remoteBook.Release.Title), magnetUrl);
 
                 return null;
             }

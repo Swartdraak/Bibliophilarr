@@ -8,15 +8,21 @@ using System.Threading.Tasks;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.Blocklisting;
+using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients.Blackhole;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.RemotePathMappings;
 using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
@@ -145,6 +151,39 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.Blackhole
 
             // We must have a category or CDH won't pick it up.
             result.Category.Should().NotBeNullOrWhiteSpace();
+        }
+
+        [Test]
+        public async Task Download_should_normalize_release_title_only_in_the_log()
+        {
+            const string title = "Fixture\tVolume";
+            const string url = "https://download.example.invalid/book";
+            var remoteBook = CreateRemoteBook();
+            remoteBook.Release.Title = title;
+            remoteBook.Release.DownloadUrl = url;
+            var messages = new MemoryTarget { Layout = "${message}" };
+            var configuration = new LoggingConfiguration();
+            configuration.AddRuleForAllLevels(messages);
+            using var logFactory = new LogFactory { Configuration = configuration };
+            var downloader = new TorrentBlackhole(
+                Mocker.Resolve<IScanWatchFolder>(),
+                Mocker.Resolve<ITorrentFileInfoReader>(),
+                Mocker.Resolve<IHttpClient>(),
+                Mocker.Resolve<IConfigService>(),
+                Mocker.Resolve<IDiskProvider>(),
+                Mocker.Resolve<IRemotePathMappingService>(),
+                Mocker.Resolve<IBlocklistService>(),
+                logFactory.GetLogger(nameof(TorrentBlackhole)))
+            {
+                Definition = Subject.Definition
+            };
+
+            await downloader.Download(remoteBook, null);
+
+            remoteBook.Release.Title.Should().Be(title);
+            Mocker.GetMock<IHttpClient>()
+                .Verify(transport => transport.GetAsync(It.Is<HttpRequest>(request => request.Url.FullUri == url)), Times.Once());
+            messages.Logs.Should().ContainSingle(entry => entry.StartsWith("Downloading torrent for release 'Fixture Volume' finished", StringComparison.Ordinal));
         }
 
         [Test]
