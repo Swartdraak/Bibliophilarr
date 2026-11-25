@@ -36,6 +36,8 @@ namespace NzbDrone.Core.Test.MetadataSource
                 _providers = providers;
             }
 
+            public bool HasConfiguredBookLookup => GetEnabledProviders().Any(provider => provider is ISearchForNewBook && (provider.SupportsBookSearch || provider.SupportsIsbnLookup));
+
             public IReadOnlyList<IMetadataProvider> GetProviders() => _providers;
 
             public void RegisterProvider(IMetadataProvider provider)

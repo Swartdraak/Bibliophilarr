@@ -62,6 +62,9 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             Mocker.GetMock<IConfigService>()
                 .SetupGet(x => x.ImportTagReadWorkerCount)
                 .Returns(1);
+            Mocker.GetMock<IMetadataProviderRegistry>()
+                .SetupGet(registry => registry.HasConfiguredBookLookup)
+                .Returns(true);
 
             Mocker.GetMock<IAugmentingService>()
                 .Setup(s => s.Augment(It.IsAny<LocalBook>(), It.IsAny<bool>()))
@@ -281,6 +284,49 @@ namespace NzbDrone.Core.Test.MediaFiles.BookImport
             orchestratorMock.Verify(
                 o => o.SearchForNewBook("Dark Crime", "Christine Feehan", true),
                 Times.Once);
+        }
+
+        [TestCase("disabled", true)]
+        [TestCase("enabled-empty", false)]
+        [TestCase("cooldown", false)]
+        [TestCase("fallback-only", false)]
+        public void should_explain_a_missing_provider_only_when_book_lookup_is_unconfigured(string mode, bool unconfigured)
+        {
+            var bookSearch = new Mock<IMetadataProvider>();
+            bookSearch.As<ISearchForNewBook>();
+            bookSearch.SetupGet(provider => provider.ProviderName).Returns("FixtureBookSearch");
+            bookSearch.SetupGet(provider => provider.IsEnabled).Returns(mode == "enabled-empty" || mode == "cooldown");
+            bookSearch.SetupGet(provider => provider.SupportsBookSearch).Returns(true);
+            var authorOnly = new Mock<IMetadataProvider>();
+            authorOnly.SetupGet(provider => provider.ProviderName).Returns("FixtureAuthorSearch");
+            authorOnly.SetupGet(provider => provider.IsEnabled).Returns(true);
+            authorOnly.SetupGet(provider => provider.SupportsAuthorSearch).Returns(true);
+            var registry = new MetadataProviderRegistry(new[] { bookSearch.Object, authorOnly.Object });
+            if (mode == "cooldown")
+            {
+                registry.UpdateProviderHealth("FixtureBookSearch", new ProviderHealthStatus { CooldownUntilUtc = DateTime.UtcNow.AddMinutes(5) });
+                registry.GetProviders().Should().NotContain(bookSearch.Object);
+            }
+
+            var fallback = new Mock<IBookSearchFallbackProvider>();
+            fallback.SetupGet(provider => provider.IsFallbackEnabled).Returns(mode == "fallback-only");
+            Mocker.SetConstant<IMetadataProviderRegistry>(registry);
+            Mocker.SetConstant<IEnumerable<IBookSearchFallbackProvider>>(new[] { fallback.Object });
+
+            var orchestrator = Mocker.GetMock<IMetadataProviderOrchestrator>();
+            orchestrator.Setup(service => service.SearchForNewBook("Dark Crime", "Christine Feehan", true))
+                .Returns(mode == "enabled-empty" ? new List<Book>() : null);
+            var decision = GetSingleDecision();
+
+            decision.Approved.Should().BeFalse();
+            decision.Item.Book.Should().BeNull();
+            decision.Item.Edition.Should().BeNull();
+            decision.Rejections.Should().ContainSingle().Which.Reason.Should().Be(unconfigured
+                ? "No book metadata provider is enabled and configured. Select a book and compatible edition from your library, or configure a metadata provider and scan again."
+                : $"Couldn't find similar book for [{Path.GetDirectoryName(_filePath)}]");
+            orchestrator.Verify(service => service.SearchForNewBook("Dark Crime", "Christine Feehan", true), Times.Once());
+            orchestrator.VerifyNoOtherCalls();
+            fallback.Verify(provider => provider.Search(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
         }
 
         [Test]

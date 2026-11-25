@@ -7,6 +7,7 @@ using NzbDrone.Common.Cache;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.MetadataSource.GoogleBooks;
+using NzbDrone.Core.MetadataSource.Hardcover;
 
 namespace NzbDrone.Core.MetadataSource
 {
@@ -72,6 +73,20 @@ namespace NzbDrone.Core.MetadataSource
                 lock (_syncRoot)
                 {
                     return _providers.Count;
+                }
+            }
+        }
+
+        public bool HasConfiguredBookLookup
+        {
+            get
+            {
+                lock (_syncRoot)
+                {
+                    // A configured provider remains configured while cooling down or temporarily unhealthy.
+                    return _providers.Values.Any(provider => IsEnabled(provider) &&
+                        provider is ISearchForNewBook && (provider.SupportsBookSearch || provider.SupportsIsbnLookup) &&
+                        (provider is not HardcoverFallbackSearchProvider hardcover || hardcover.IsEnabled));
                 }
             }
         }
