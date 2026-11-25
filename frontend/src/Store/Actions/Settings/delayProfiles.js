@@ -80,11 +80,11 @@ export default {
       }
 
       const after = moveIndex > 0 ? _.find(delayProfiles, { order: moveIndex }) : null;
-      const afterQueryParam = after ? `after=${after.id}` : '';
+      const afterQueryParam = after ? `?afterId=${after.id}` : '';
 
       const promise = createAjaxRequest({
         method: 'PUT',
-        url: `/delayprofile/reorder/${id}?${afterQueryParam}`
+        url: `/delayprofile/reorder/${id}${afterQueryParam}`
       }).request;
 
       promise.done((data) => {

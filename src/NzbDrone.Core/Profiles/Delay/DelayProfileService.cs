@@ -146,6 +146,7 @@ namespace NzbDrone.Core.Profiles.Delay
             }
 
             _repo.UpdateMany(all);
+            _bestForTagsCache.Clear();
 
             return All();
         }
