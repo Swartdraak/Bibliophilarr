@@ -135,6 +135,13 @@ namespace NzbDrone.Core.Books
 
         protected override bool RefreshChildren(SortedChildren localChildren, List<SeriesBookLink> remoteChildren, Author remoteData, bool forceChildRefresh, bool forceUpdateFileTags, DateTime? lastUpdate)
         {
+            // Positive membership hints can add or update links. Only a complete series
+            // membership snapshot provides evidence that an omitted link was removed.
+            if (remoteData.RemoteSeriesComplete != true)
+            {
+                localChildren.Deleted.Clear();
+            }
+
             return _refreshLinkService.RefreshSeriesBookLinkInfo(localChildren.Added, localChildren.Updated, localChildren.Merged, localChildren.Deleted, localChildren.UpToDate, remoteChildren, forceUpdateFileTags);
         }
 

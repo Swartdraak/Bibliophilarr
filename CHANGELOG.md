@@ -51,6 +51,8 @@ process.
 
 ### Fixed
 
+- Keep existing series memberships when a provider returns optional series
+  hints without confirming a complete membership list.
 - Hold a standalone audiobook when its embedded titles and filename identify a
   numbered part that the proposed work and edition both omit. Show this reason
   in Unmapped Files.
