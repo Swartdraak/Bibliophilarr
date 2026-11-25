@@ -24,6 +24,8 @@ process.
   independently when both file formats are recognized.
 - Use the current author and artwork when processing a delayed author refresh.
   Keep current portraits and skip refresh events for removed authors.
+- Add a selected book to an existing author without resubmitting the author's
+  root and monitoring settings.
 - Retry missing Open Library artwork for unambiguous stored book editions in
   bounded batches, without refreshing book metadata or replacing existing art.
 - Report Hardcover's shared request cooldown in provider health and distinguish
