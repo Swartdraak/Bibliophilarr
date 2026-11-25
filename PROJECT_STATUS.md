@@ -75,15 +75,15 @@ recovery issue is closed.
   audited catalogue identities. Bibliography, artwork, unresolved matches, and
   a separate fresh replay of the newer draft remain open.
   [Completed replay](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7127917686)
-- The most recent fresh profile recorded live requests to all four configured
-  providers. The primary scans accounted for all 533 paths across both roots.
-  Of the 75 ebooks, 53 linked to ebook editions and 22 were held. Of the 458
-  audiobook files, 360 linked to audiobook editions and 98 were held. Six
-  ebook holds are byte-identical copies of already linked files. Low matching
-  confidence, unavailable author bibliographies, and duplicates in the same
-  scan were the most frequent audiobook hold reasons. Final catalogue evidence
-  still needs the settled refresh, dual-format ownership, artwork, and restart.
-  [Connected replay checkpoint](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7150948133)
+- The most recent closed fresh replay ran exact draft build `7dfd3367` with all
+  four metadata providers. Both full scans and the scheduled follow-up accounted
+  for all 533 files. The final state linked 54 of 75 ebooks and 405 of 458
+  audiobooks. Eighteen works have separate typed editions for both formats, and
+  74 files have recorded hold reasons. An independent signed offline restart
+  preserved file ownership and canonical identities. The browser verified an
+  author portrait, a member book cover and a representative series cover.
+  Provider bibliography, remaining artwork and title gaps stay open.
+  [Closed replay evidence](https://github.com/Swartdraak/Bibliophilarr/issues/486#issuecomment-7153619701)
 - The closed replay decoded all 7,586 cached images. Among 414 works with
   linked files, 42 had an image reference without a usable cached image and
   62 lacked a reference. The retained logs connect rate-limit deferrals to
