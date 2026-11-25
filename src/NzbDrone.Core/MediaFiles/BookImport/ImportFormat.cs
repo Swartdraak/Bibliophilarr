@@ -34,7 +34,7 @@ namespace NzbDrone.Core.MediaFiles.BookImport
             var label = edition.Format?.Trim().TrimStart('.').ToLowerInvariant();
             var format = label switch
             {
-                "audiobook" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" => FormatType.Audiobook,
+                "audio" or "audiobook" or "audio book" or "audio cd" or "audio cassette" or "audible audio" or "mp3 cd" => FormatType.Audiobook,
                 "ebook" or "e-book" or "electronic book" or "kindle edition" or "nook" => FormatType.Ebook,
                 null or "" => null,
                 _ => ForPath("." + label)
