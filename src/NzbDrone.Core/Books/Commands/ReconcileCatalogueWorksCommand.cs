@@ -7,6 +7,7 @@ namespace NzbDrone.Core.Books.Commands
         public int SourceBookId { get; set; }
         public int TargetBookId { get; set; }
         public bool DryRun { get; set; } = true;
+        public bool VerifyOpenLibraryIsbnBridge { get; set; }
 
         public override bool RequiresDiskAccess => true;
         public override string CompletionMessage => "Catalogue work reconciliation completed";

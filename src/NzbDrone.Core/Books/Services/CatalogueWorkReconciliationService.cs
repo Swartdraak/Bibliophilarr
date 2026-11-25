@@ -7,36 +7,66 @@ using Newtonsoft.Json;
 using NLog;
 using NzbDrone.Core.Books.Commands;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.BookImport;
 using NzbDrone.Core.Messaging.Commands;
+using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.OpenLibrary;
+using BridgeIdentity =(int SourceId, int TargetId, string SourceCanonical, string TargetCanonical, int AuthorMetadataId,
+    string HardcoverWork, string OpenLibraryWork, string OpenLibraryAuthor, string HardcoverAuthor, string Title, string TargetTitle);
+using FileWitness =(int FileId, int EditionId, string ForeignEditionId, string Path, long Size, System.DateTime Modified,
+    int Part, string Isbn, string Format);
 
 namespace NzbDrone.Core.Books
 {
     public class CatalogueWorkReconciliationService : IExecute<ReconcileCatalogueWorksCommand>
     {
+        private const string UnverifiedBridge = "The selected works do not have a current, verified Open Library edition bridge.";
+
         private readonly IMainDatabase _database;
+        private readonly IMetadataProviderRegistry _metadataProviders;
         private readonly Logger _logger;
 
-        public CatalogueWorkReconciliationService(IMainDatabase database, Logger logger)
+        public CatalogueWorkReconciliationService(IMainDatabase database, IMetadataProviderRegistry metadataProviders, Logger logger)
         {
             _database = database;
+            _metadataProviders = metadataProviders;
             _logger = logger;
         }
 
         public void Execute(ReconcileCatalogueWorksCommand command)
         {
+            var verifiedBridge = command.VerifyOpenLibraryIsbnBridge ? VerifyBridge(command) : null;
+
             using var connection = _database.OpenConnection();
             using var transaction = connection.BeginTransaction(IsolationLevel.Serializable);
+            if (verifiedBridge != null && _database.DatabaseType == DatabaseType.PostgreSQL)
+            {
+                LockBridgeRows(connection, transaction, verifiedBridge);
+            }
+
             var source = ReadWork(connection, transaction, command.SourceBookId);
             var target = ReadWork(connection, transaction, command.TargetBookId);
 
             if (source == null && target != null && command.SourceBookId > 0)
             {
+                if (verifiedBridge != null)
+                {
+                    throw new InvalidOperationException(UnverifiedBridge);
+                }
+
                 _logger.Info("Source work is already absent. No catalogue changes were made.");
                 return;
             }
 
+            if (command.VerifyOpenLibraryIsbnBridge &&
+                (verifiedBridge == null || !verifiedBridge.Matches(ReadBridge(connection, transaction, source, target))))
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
             BindVerifiedLegacyRemap(connection, transaction, source, target);
-            Reconcile(connection, transaction, source, target, command.DryRun);
+            Reconcile(connection, transaction, source, target, command.DryRun, verifiedBridge);
             if (command.DryRun)
             {
                 _logger.Info("Works {0} and {1} have corroborated identity. The source has {2} editions to transfer.", source.Id, target.Id, source.Editions.Value.Count);
@@ -45,6 +75,175 @@ namespace NzbDrone.Core.Books
 
             transaction.Commit();
             _logger.Info("Reconciled work {0} into {1}, retaining both formats and existing edition and file IDs.", source.Id, target.Id);
+        }
+
+        private Bridge VerifyBridge(ReconcileCatalogueWorksCommand command)
+        {
+            if (command.Trigger != CommandTrigger.Manual)
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            Bridge candidate;
+            using (var connection = _database.OpenConnection())
+            {
+                var source = ReadWork(connection, null, command.SourceBookId);
+                var target = ReadWork(connection, null, command.TargetBookId);
+                if (source == null && target != null && command.SourceBookId > 0)
+                {
+                    return null;
+                }
+
+                candidate = ReadBridge(connection, null, source, target);
+            }
+
+            var provider = _metadataProviders.GetProviders().OfType<OpenLibraryProvider>().FirstOrDefault();
+            if (provider?.IsEnabled != true ||
+                (_metadataProviders.GetProvidersHealthStatus().TryGetValue("OpenLibrary", out var health) &&
+                 health?.CooldownUntilUtc > DateTime.UtcNow) ||
+                !provider.VerifyWorkForReconciliation(candidate.Identity.OpenLibraryAuthor, candidate.Identity.OpenLibraryWork, candidate.Ebook.Isbn, candidate.Identity.Title))
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            return candidate;
+        }
+
+        private static Bridge ReadBridge(IDbConnection connection, IDbTransaction transaction, Book source, Book target)
+        {
+            var sourceKey = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, source?.ForeignBookId, null);
+            var targetKey = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, target?.ForeignBookId, null);
+            if (sourceKey?.Provider != "Hardcover" || targetKey?.Provider != "OpenLibrary" ||
+                source.AuthorMetadataId <= 0 || source.AuthorMetadataId != target.AuthorMetadataId ||
+                !OpenLibraryProvider.SameReconciliationTitle(source.Title, target.Title) ||
+                HasConflictingOpenLibraryWorkIds(connection, transaction, source, target) ||
+                !OnlySelectedLegacyOwners(
+                    connection,
+                    transaction,
+                    source,
+                    target,
+                    original => (original.Provider == sourceKey.Provider && original.ProviderId == sourceKey.ProviderId) ||
+                                (original.Provider == targetKey.Provider && original.ProviderId == targetKey.ProviderId)))
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            ReadLinkAndMonitoringConstraints(source, target);
+
+            var sources = connection.Query<(int BookId, string Provider, string ProviderId, string Evidence)>(
+                """
+                SELECT "BookId", "Provider", "ProviderId", "Evidence" FROM "WorkSourceAssociations"
+                WHERE "BookId" IN (@Source, @Target)
+                """,
+                new { Source = source.Id, Target = target.Id },
+                transaction).ToList();
+            if (!sources.Contains((source.Id, sourceKey.Provider, sourceKey.ProviderId, CatalogueIdentityRepository.PrimaryProviderEvidence)) ||
+                !sources.Contains((target.Id, targetKey.Provider, targetKey.ProviderId, CatalogueIdentityRepository.PrimaryProviderEvidence)) ||
+                sources.Any(item => item.BookId == source.Id && item.Provider == "OpenLibrary"))
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            var authorities = connection.Query<(string Provider, string ProviderId, string Evidence)>(
+                """
+                SELECT "Provider", "ProviderId", "Evidence" FROM "AuthorSourceAssociations" WHERE "AuthorMetadataId" = @Owner
+                """,
+                new { Owner = source.AuthorMetadataId },
+                transaction).ToList();
+            var openLibrary = authorities.Where(item => item.Provider == "OpenLibrary").ToList();
+            var hardcover = authorities.Where(item => item.Provider == "Hardcover").ToList();
+            if (openLibrary.Count != 1 || hardcover.Count != 1 ||
+                openLibrary[0].Evidence != CatalogueIdentityRepository.PrimaryProviderEvidence ||
+                hardcover[0].Evidence != AuthorCanonicalizationService.BibliographyEvidence ||
+                CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", openLibrary[0].ProviderId, null) == null)
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            var ebook = ReadFileWitness(connection, transaction, source, FormatType.Ebook);
+            var audiobook = ReadFileWitness(connection, transaction, target, FormatType.Audiobook);
+            if (ebook?.Isbn == null || audiobook == null ||
+                !IsHardcoverEditionWitness(ebook.Value.ForeignEditionId, sourceKey.ProviderId))
+            {
+                throw new InvalidOperationException(UnverifiedBridge);
+            }
+
+            BridgeIdentity identity = (source.Id, target.Id, source.CanonicalId, target.CanonicalId, source.AuthorMetadataId,
+                sourceKey.ProviderId, targetKey.ProviderId, openLibrary[0].ProviderId, hardcover[0].ProviderId, source.Title, target.Title);
+            return new Bridge(identity, ebook.Value, audiobook.Value);
+        }
+
+        private static bool IsHardcoverEditionWitness(string editionId, string workId)
+        {
+            const string prefix = "hardcover:source-edition:";
+            return editionId == $"hardcover:edition:{workId}" ||
+                   (editionId.StartsWith(prefix, StringComparison.Ordinal) &&
+                    long.TryParse(
+                        editionId.AsSpan(prefix.Length),
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var id) && id > 0);
+        }
+
+        private static FileWitness? ReadFileWitness(IDbConnection connection, IDbTransaction transaction, Book work, FormatType format)
+        {
+            var editions = work.Editions.Value.ToDictionary(item => item.Id);
+            var files = connection.Query<BookFile>(
+                """
+                SELECT f."Id", f."EditionId", f."Path", f."Size", f."Modified", f."Part" FROM "BookFiles" f
+                JOIN "Editions" e ON f."EditionId" = e."Id" WHERE e."BookId" = @WorkId
+                LIMIT 2
+                """,
+                new { WorkId = work.Id },
+                transaction).AsList();
+            if (files.Count != 1)
+            {
+                return null;
+            }
+
+            var file = files[0];
+            var edition = editions.GetValueOrDefault(file.EditionId);
+            if (file.Size <= 0 || edition == null || string.IsNullOrWhiteSpace(edition.ForeignEditionId) ||
+                ImportFormat.ForPath(file.Path) != format || ImportFormat.ForEdition(edition, requireExplicitFormat: true) != format ||
+                edition.IsEbook != (format == FormatType.Ebook))
+            {
+                return null;
+            }
+
+            return (file.Id, file.EditionId, edition.ForeignEditionId, file.Path, file.Size, file.Modified, file.Part,
+                Isbn.AsIsbn13(edition.Isbn13), edition.Format);
+        }
+
+        private static void LockBridgeRows(IDbConnection connection, IDbTransaction transaction, Bridge bridge)
+        {
+            var ids = new { Source = bridge.Identity.SourceId, Target = bridge.Identity.TargetId, Owner = bridge.Identity.AuthorMetadataId };
+            connection.Query<int>(
+                """SELECT "Id" FROM "Books" WHERE "Id" IN (@Source, @Target) ORDER BY "Id" FOR UPDATE""",
+                ids,
+                transaction).AsList();
+            connection.Query<int>(
+                """SELECT "Id" FROM "AuthorMetadata" WHERE "Id" = @Owner FOR UPDATE""",
+                ids,
+                transaction).AsList();
+            connection.Query<int>(
+                """SELECT "Id" FROM "AuthorSourceAssociations" WHERE "AuthorMetadataId" = @Owner ORDER BY "Id" FOR UPDATE""",
+                ids,
+                transaction).AsList();
+            connection.Query<int>(
+                """SELECT "Id" FROM "WorkSourceAssociations" WHERE "BookId" IN (@Source, @Target) ORDER BY "Id" FOR UPDATE""",
+                ids,
+                transaction).AsList();
+            connection.Query<int>(
+                """SELECT "Id" FROM "Editions" WHERE "BookId" IN (@Source, @Target) ORDER BY "Id" FOR UPDATE""",
+                ids,
+                transaction).AsList();
+            connection.Query<int>(
+                """
+                SELECT f."Id" FROM "BookFiles" f JOIN "Editions" e ON f."EditionId" = e."Id"
+                WHERE e."BookId" IN (@Source, @Target) ORDER BY f."Id" FOR UPDATE OF f
+                """,
+                ids,
+                transaction).AsList();
         }
 
         private static void BindVerifiedLegacyRemap(IDbConnection connection, IDbTransaction transaction, Book source, Book target)
@@ -93,19 +292,12 @@ namespace NzbDrone.Core.Books
 
             // Earlier migrations can leave conflicting raw legacy keys outside the unique association table.
             // Normalize the raw rows with the same rules used to store provider identities.
-            var legacyOwners = connection.Query<(int Id, string ForeignBookId)>(
-                    """SELECT "Id", "ForeignBookId" FROM "Books" """,
-                    transaction: transaction,
-                    buffered: false)
-                .Where(row =>
-                {
-                    var primary = CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, row.ForeignBookId, null);
-                    return primary?.Provider == "Hardcover" && keys.Contains(primary.ProviderId);
-                })
-                .Select(row => row.Id)
-                .Take(3)
-                .ToList();
-            if (legacyOwners.Count != 2 || !legacyOwners.Contains(source.Id) || !legacyOwners.Contains(target.Id))
+            if (!OnlySelectedLegacyOwners(
+                connection,
+                transaction,
+                source,
+                target,
+                primary => primary.Provider == "Hardcover" && keys.Contains(primary.ProviderId)))
             {
                 throw new InvalidOperationException("The remap has competing legacy work owners.");
             }
@@ -114,7 +306,27 @@ namespace NzbDrone.Core.Books
             target.PendingSourceAssociations.Add(original);
         }
 
+        private static bool OnlySelectedLegacyOwners(
+            IDbConnection connection, IDbTransaction transaction, Book source, Book target, Func<CatalogueSourceAssociation, bool> matches)
+        {
+            var owners = connection.Query<(int Id, string ForeignBookId)>(
+                    """SELECT "Id", "ForeignBookId" FROM "Books" """,
+                    transaction: transaction,
+                    buffered: false)
+                .Where(row => CatalogueIdentityRepository.ParseLegacySource(CatalogueEntityKind.Work, row.ForeignBookId, null) is { } primary &&
+                              matches(primary))
+                .Select(row => row.Id)
+                .Take(3)
+                .ToList();
+            return owners.Count == 2 && owners.Contains(source.Id) && owners.Contains(target.Id);
+        }
+
         internal static void Reconcile(IDbConnection connection, IDbTransaction transaction, Book source, Book target, bool dryRun)
+        {
+            Reconcile(connection, transaction, source, target, dryRun, null);
+        }
+
+        private static void Reconcile(IDbConnection connection, IDbTransaction transaction, Book source, Book target, bool dryRun, Bridge verifiedBridge)
         {
             const string insufficientEvidence = "The selected works lack corroborated identity under the same author.";
             if (source == null || target == null || source.Id == target.Id)
@@ -127,19 +339,14 @@ namespace NzbDrone.Core.Books
                 throw new InvalidOperationException("The selected works have conflicting Open Library work IDs. Verify an official work alias before reconciling them.");
             }
 
-            if (!BookWorkIdentity.AreCorroborated(source, target))
+            if (verifiedBridge == null && !BookWorkIdentity.AreCorroborated(source, target))
             {
                 throw new InvalidOperationException(insufficientEvidence);
             }
 
-            var ebook = CombineMonitoring(source, target, FormatType.Ebook);
-            var audio = CombineMonitoring(source, target, FormatType.Audiobook);
+            var (ebook, audio) = ReadLinkAndMonitoringConstraints(source, target);
             var sourceLinks = source.SeriesLinks.Value;
             var targetLinks = target.SeriesLinks.Value.ToLookup(link => link.SeriesId);
-            if (sourceLinks.Any(link => targetLinks[link.SeriesId].Any(other => PositionsConflict(link, other))))
-            {
-                throw new InvalidOperationException("The selected works have conflicting series positions.");
-            }
 
             if (dryRun)
             {
@@ -227,6 +434,19 @@ namespace NzbDrone.Core.Books
                 transaction,
                 splitOn: "Id").ToList();
             return book;
+        }
+
+        private static (bool? Ebook, bool? Audio) ReadLinkAndMonitoringConstraints(Book source, Book target)
+        {
+            var ebook = CombineMonitoring(source, target, FormatType.Ebook);
+            var audio = CombineMonitoring(source, target, FormatType.Audiobook);
+            var targetLinks = target.SeriesLinks.Value.ToLookup(link => link.SeriesId);
+            if (source.SeriesLinks.Value.Any(link => targetLinks[link.SeriesId].Any(other => PositionsConflict(link, other))))
+            {
+                throw new InvalidOperationException("The selected works have conflicting series positions.");
+            }
+
+            return (ebook, audio);
         }
 
         private static bool? CombineMonitoring(Book source, Book target, FormatType format)
@@ -318,6 +538,25 @@ namespace NzbDrone.Core.Books
                         new { row.Id, Value = JsonConvert.SerializeObject(updated) },
                         transaction);
                 }
+            }
+        }
+
+        private sealed class Bridge
+        {
+            public Bridge(BridgeIdentity identity, FileWitness ebook, FileWitness audiobook)
+            {
+                Identity = identity;
+                Ebook = ebook;
+                Audiobook = audiobook;
+            }
+
+            public BridgeIdentity Identity { get; }
+            public FileWitness Ebook { get; }
+            public FileWitness Audiobook { get; }
+
+            public bool Matches(Bridge other)
+            {
+                return other != null && Identity == other.Identity && Ebook == other.Ebook && Audiobook == other.Audiobook;
             }
         }
     }

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -18,10 +19,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         OlAuthorWorksResponse GetAuthorWorks(string olid, int limit = 100, int offset = 0);
         OlWorkEditionsResponse GetWorkEditions(string olid, int limit = 20, int offset = 0);
         OlWorkResource GetWork(string olid);
+        OlWorkResource GetWork(string olid, bool verification);
         OlAuthorResource GetAuthor(string olid);
         OlAuthorResource GetAuthor(string olid, bool confirmNotFound);
         OlEditionResource GetEditionByIsbn(string isbn);
         OlEditionResource GetExactEditionByIsbn(string isbn);
+        OlEditionResource GetExactEditionByIsbn(string isbn, bool verification);
         OlEditionResource GetEdition(string olid);
     }
 
@@ -45,6 +48,8 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
         private readonly Logger _logger;
         private readonly IHttpRequestBuilderFactory _requestBuilder;
         private readonly ConcurrentDictionary<string, CircuitState> _circuitState = new ConcurrentDictionary<string, CircuitState>();
+        private readonly object _boundedRequestLock = new ();
+        private DateTime _boundedUntilUtc;
 
         private class CircuitState
         {
@@ -98,7 +103,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 request.AllowAutoRedirect = false;
             }
 
-            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, retryBudget);
+            var response = ExecuteWithRateLimitRetry<OlSearchResponse>("openlibrary.search", request, retryBudget, bounded: supplemental);
 
             // Author hydration must distinguish a failed request from an empty final page.
             return query.StartsWith("author_key:", StringComparison.Ordinal)
@@ -141,9 +146,14 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return response ?? new OlWorkEditionsResponse();
         }
 
-        public OlWorkResource GetWork(string olid)
+        public OlWorkResource GetWork(string olid) => GetWork(olid, verification: false);
+
+        public OlWorkResource GetWork(string olid, bool verification)
         {
-            _logger.Debug("OpenLibrary get work: {0}", olid);
+            if (!verification)
+            {
+                _logger.Debug("OpenLibrary get work: {0}", olid);
+            }
 
             var cleanKey = StripKeyPrefix(olid);
             var request = _requestBuilder.Create()
@@ -153,7 +163,16 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             request.RequestTimeout = TimeSpan.FromSeconds(GetTimeoutSeconds(OperationClass.Work));
             request.SuppressHttpError = true;
 
-            return ExecuteWithRateLimitRetry<OlWorkResource>("openlibrary.work", request, GetRetryBudget(OperationClass.Work));
+            if (verification)
+            {
+                request.AllowAutoRedirect = false;
+            }
+
+            return ExecuteWithRateLimitRetry<OlWorkResource>(
+                "openlibrary.work",
+                request,
+                verification ? 0 : GetRetryBudget(OperationClass.Work),
+                bounded: verification);
         }
 
         public OlAuthorResource GetAuthor(string olid)
@@ -180,7 +199,10 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
         public OlEditionResource GetExactEditionByIsbn(string isbn) => GetEditionByIsbn(isbn, requireMatchingRedirect: true);
 
-        private OlEditionResource GetEditionByIsbn(string isbn, bool requireMatchingRedirect)
+        public OlEditionResource GetExactEditionByIsbn(string isbn, bool verification)
+            => GetEditionByIsbn(isbn, requireMatchingRedirect: true, verification: verification);
+
+        private OlEditionResource GetEditionByIsbn(string isbn, bool requireMatchingRedirect, bool verification = false)
         {
             _logger.Debug("OpenLibrary ISBN lookup (exact redirect required: {0}).", requireMatchingRedirect);
 
@@ -188,10 +210,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return ExecuteWithRateLimitRetry<OlEditionResource>(
                 "openlibrary.isbn",
                 request,
-                GetRetryBudget(OperationClass.Isbn),
+                verification ? 0 : GetRetryBudget(OperationClass.Isbn),
                 followIsbnRedirect: true,
                 requireMatchingIsbnRedirect: requireMatchingRedirect,
-                unavailable: () => new OlEditionResource { RequestUnavailable = true });
+                unavailable: () => new OlEditionResource { RequestUnavailable = true },
+                bounded: verification);
         }
 
         public OlEditionResource GetEdition(string olid)
@@ -249,7 +272,38 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             string authorId = null,
             bool followIsbnRedirect = false,
             bool requireMatchingIsbnRedirect = false,
-            Func<T> unavailable = null)
+            Func<T> unavailable = null,
+            bool bounded = false)
+            where T : class
+        {
+            var acquired = bounded && Monitor.TryEnter(_boundedRequestLock);
+            if (bounded && !acquired)
+            {
+                return unavailable?.Invoke();
+            }
+
+            try
+            {
+                return ExecuteRequests(endpointKey, request, maxRetries, authorId, followIsbnRedirect, requireMatchingIsbnRedirect, unavailable, bounded);
+            }
+            finally
+            {
+                if (acquired)
+                {
+                    Monitor.Exit(_boundedRequestLock);
+                }
+            }
+        }
+
+        private T ExecuteRequests<T>(
+            string endpointKey,
+            HttpRequest request,
+            int maxRetries,
+            string authorId,
+            bool followIsbnRedirect,
+            bool requireMatchingIsbnRedirect,
+            Func<T> unavailable,
+            bool bounded)
             where T : class
         {
             maxRetries = Math.Max(0, maxRetries);
@@ -267,7 +321,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
 
             while (true)
             {
-                var logTarget = followIsbnRedirect ? endpointKey : request.Url.ToString();
+                if (bounded)
+                {
+                    if (!_configService.EnableOpenLibraryProvider || _boundedUntilUtc > DateTime.UtcNow)
+                    {
+                        return unavailable?.Invoke();
+                    }
+
+                    request.RateLimit = TimeSpan.FromSeconds(1);
+                    request.RateLimitKey = "OpenLibrary";
+                }
+
+                var logTarget = followIsbnRedirect || bounded ? endpointKey : request.Url.ToString();
                 HttpResponse response;
                 try
                 {
@@ -281,7 +346,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                         state.OpenUntilUtc = DateTime.UtcNow.AddSeconds(breakerDurationSeconds);
                     }
 
-                    if (followIsbnRedirect)
+                    if (followIsbnRedirect || bounded)
                     {
                         _logger.Warn("OpenLibrary HTTP error for {0}: {1}", logTarget, ex.Response?.StatusCode);
                     }
@@ -293,6 +358,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     if (unavailable != null)
                     {
                         return unavailable();
+                    }
+
+                    if (bounded)
+                    {
+                        return null;
                     }
 
                     throw new OpenLibraryException("HTTP error communicating with Open Library: {0}", ex, ex.Message);
@@ -309,6 +379,18 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     request = BuildIsbnRequest(route);
                     redirectedEditionRoute = route;
                     continue;
+                }
+
+                if (bounded && response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    var retry = new TooManyRequestsException(response.Headers["Retry-After"]).RetryAfter;
+                    var delay = BookSearchFallbackExecutionService.GetRateLimitCooldown(retry);
+                    _boundedUntilUtc = DateTime.UtcNow.Add(delay);
+                }
+
+                if (bounded && response.HasHttpRedirect)
+                {
+                    return unavailable?.Invoke();
                 }
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
@@ -358,6 +440,11 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                     return unavailable?.Invoke();
                 }
 
+                if (bounded && response.StatusCode != HttpStatusCode.OK)
+                {
+                    return unavailable?.Invoke();
+                }
+
                 state.ConsecutiveFailures = 0;
                 state.OpenUntilUtc = DateTime.MinValue;
 
@@ -379,7 +466,7 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 }
                 catch (JsonException ex)
                 {
-                    _logger.Warn(followIsbnRedirect ? null : ex, "OpenLibrary: failed to deserialize response from {0}", logTarget);
+                    _logger.Warn(followIsbnRedirect || bounded ? null : ex, "OpenLibrary: failed to deserialize response from {0}", logTarget);
                     return unavailable?.Invoke();
                 }
             }

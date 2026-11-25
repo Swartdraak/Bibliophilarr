@@ -17,6 +17,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("title")]
         public string Title { get; set; }
 
+        [JsonPropertyName("subtitle")]
+        public string Subtitle { get; set; }
+
+        [JsonPropertyName("type")]
+        public OlKeyRef Type { get; set; }
+
         /// <summary>
         /// May be a raw string or a {"type":"...", "value":"..."} node.
         /// Handled by OlTextValueConverter.

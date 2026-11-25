@@ -456,6 +456,14 @@ series and monitoring state. A successful apply keeps the target work identity
 and preserves both formats, edition IDs, file IDs and tracked paths. The source
 bookmark resolves to the target after the merge.
 
+For a split-format duplicate with a linked Hardcover ebook and a linked Open
+Library audiobook, set `verifyOpenLibraryIsbnBridge` to `true` in the preview.
+Bibliophilarr reads the ebook's ISBN from its stored edition and verifies the
+exact Open Library work and author credit. Keep Open Library enabled. The
+preview stops if the identity, file links, or provider response leave the merge
+uncertain. An apply verifies the records again before moving any catalogue
+links. Use the same option for the approved apply.
+
 ## Container resource limits
 
 Recommended resource allocations for Docker and Kubernetes deployments:

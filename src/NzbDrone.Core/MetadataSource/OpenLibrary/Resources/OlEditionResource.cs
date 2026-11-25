@@ -18,6 +18,12 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary.Resources
         [JsonPropertyName("title")]
         public string Title { get; set; }
 
+        [JsonPropertyName("subtitle")]
+        public string Subtitle { get; set; }
+
+        [JsonPropertyName("type")]
+        public OlKeyRef Type { get; set; }
+
         [JsonPropertyName("isbn_10")]
         public List<string> Isbn10 { get; set; }
 

@@ -80,6 +80,11 @@ process.
   the work or edition title. Avoid unnecessary file retagging for that omission.
 - Skip untitled Hardcover search results and defer importing a new author
   when the provider returns an identified bibliography work without a title.
+- Verify a linked ebook's exact Open Library ISBN and author credit when
+  reviewing a split-format catalogue merge.
+- Include exact-name Open Library matches in Add New author search when the
+  configured search has already returned results and Open Library is eligible.
+  Keep distinct authors with the same name and group verified provider aliases.
 - Resolve Open Library title results to a verified ebook or audiobook edition
   when adding them to the library.
 - Allow equal-size ebooks and audiobooks of the same work to be tracked

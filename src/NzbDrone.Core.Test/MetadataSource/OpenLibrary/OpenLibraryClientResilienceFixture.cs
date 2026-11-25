@@ -107,15 +107,18 @@ namespace NzbDrone.Core.Test.MetadataSource.OpenLibrary
         }
 
         [Test]
-        public void supplemental_author_search_does_not_retry_a_rate_limit_or_follow_redirects()
+        public void supplemental_author_search_honors_retry_after_without_retrying_or_following_redirects()
         {
             Mocker.GetMock<IConfigService>().SetupGet(config => config.OpenLibrarySearchRetryBudget).Returns(3);
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.MetadataProviderCircuitBreakerThreshold).Returns(5);
+            Mocker.GetMock<IConfigService>().SetupGet(config => config.EnableOpenLibraryProvider).Returns(true);
             var http = Mocker.GetMock<IHttpClient>();
             http.Setup(client => client.Get(It.IsAny<HttpRequest>()))
                 .Returns<HttpRequest>(request => new HttpResponse(
-                    request, new HttpHeader { { "Retry-After", "0" } }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests));
+                    request, new HttpHeader { { "Retry-After", "120" } }, Array.Empty<byte>(), HttpStatusCode.TooManyRequests));
 
             Subject.SearchOnePageWithoutRetry("Fixture Author", 10).RequestUnavailable.Should().BeTrue();
+            Subject.SearchOnePageWithoutRetry("Different Fixture Author", 10).RequestUnavailable.Should().BeTrue();
 
             http.Verify(client => client.Get(It.Is<HttpRequest>(request =>
                 request.Url.Path == "/search.json" && !request.AllowAutoRedirect)), Times.Once());

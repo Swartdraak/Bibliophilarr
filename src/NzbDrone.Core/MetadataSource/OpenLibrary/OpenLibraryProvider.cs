@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
+using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Exceptions;
 using NzbDrone.Common.Extensions;
@@ -750,7 +752,32 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             return GetVerifiedAuthorWork(authorId, isbn);
         }
 
-        private (string WorkId, string Title)? GetVerifiedAuthorWork(string authorId, string isbn, string expectedWork = null)
+        internal bool VerifyWorkForReconciliation(string authorId, string workId, string isbn, string title)
+        {
+            var work = GetIsbnLookupWorkId(workId);
+            return IsEnabled && work != null && IsSingleWorkTitle(title, null) &&
+                GetVerifiedAuthorWork(authorId, isbn, work, title) != null;
+        }
+
+        internal static bool SameReconciliationTitle(string left, string right)
+        {
+            return left.IsNotNullOrWhiteSpace() && right.IsNotNullOrWhiteSpace() &&
+                string.Equals(NormalizeReconciliationTitle(left), NormalizeReconciliationTitle(right), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeReconciliationTitle(string value)
+        {
+            return string.Join(" ", value.Normalize(NormalizationForm.FormKC).Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        private static bool IsSingleWorkTitle(string title, string subtitle)
+        {
+            const string compound = @"\b(?:omnibus|collection|box(?:ed)?\s+set|anthology|bundle|books\s+[0-9]+)\b";
+            return title.IsNotNullOrWhiteSpace() &&
+                   !Regex.IsMatch($"{title} {subtitle}", compound, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        private (string WorkId, string Title)? GetVerifiedAuthorWork(string authorId, string isbn, string expectedWork = null, string reconciliationTitle = null)
         {
             var author = CatalogueIdentityRepository.NormalizeSource(CatalogueEntityKind.Author, "OpenLibrary", authorId, null);
             var canonicalIsbn = Isbn.AsIsbn13(isbn);
@@ -759,7 +786,9 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
                 return null;
             }
 
-            var edition = expectedWork == null ? _client.GetExactEditionByIsbn(canonicalIsbn) : _client.GetEditionByIsbn(canonicalIsbn);
+            var reconciliation = reconciliationTitle != null;
+            var edition = reconciliation ? _client.GetExactEditionByIsbn(canonicalIsbn, verification: true)
+                : expectedWork == null ? _client.GetExactEditionByIsbn(canonicalIsbn) : _client.GetEditionByIsbn(canonicalIsbn);
             var editionKey = OpenLibraryIdNormalizer.NormalizeWorkId(edition?.Key);
             if (editionKey == null || !editionKey.EndsWith("M", StringComparison.Ordinal) ||
                 editionKey.Length <= 3 || !editionKey[2..^1].All(char.IsAsciiDigit) ||
@@ -772,15 +801,22 @@ namespace NzbDrone.Core.MetadataSource.OpenLibrary
             var workKey = edition.Works[0]?.Key;
             var work = GetIsbnLookupWorkId(workKey);
             if (work == null || (expectedWork != null && work != expectedWork) ||
-                (expectedWork == null && (edition.Key != $"/books/{editionKey}" || workKey != $"/works/{work}")))
+                ((expectedWork == null || reconciliation) && (edition.Key != $"/books/{editionKey}" || workKey != $"/works/{work}")) ||
+                (reconciliation && (!SameReconciliationTitle(edition.Title, reconciliationTitle) ||
+                                    !IsSingleWorkTitle(edition.Title, edition.Subtitle) ||
+                                    (edition.Type != null && edition.Type.Key != "/type/edition") ||
+                                    (edition.Authors != null &&
+                                     (edition.Authors.Count != 1 || edition.Authors[0]?.Key != $"/authors/{author.ProviderId}")))))
             {
                 return null;
             }
 
-            var source = _client.GetWork(work);
+            var source = reconciliation ? _client.GetWork(work, verification: true) : _client.GetWork(work);
             return GetIsbnLookupWorkId(source?.Key) == work &&
-                   (expectedWork != null || source.Key == $"/works/{work}") &&
-                   HasExclusiveAuthorCredit(source, author.ProviderId)
+                   ((expectedWork != null && !reconciliation) || source.Key == $"/works/{work}") &&
+                   HasExclusiveAuthorCredit(source, author.ProviderId) &&
+                   (!reconciliation || (source.Type?.Key == "/type/work" &&
+                    SameReconciliationTitle(source.Title, reconciliationTitle) && IsSingleWorkTitle(source.Title, source.Subtitle)))
                 ? ($"openlibrary:work:{work}", source.Title)
                 : null;
         }
