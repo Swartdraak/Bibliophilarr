@@ -698,19 +698,23 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 files.Count == 1 && files[0].UnmappedReason == LibraryImportHoldReason.ImportFailed)), Times.Once);
         }
 
-        [TestCase(".M4B", 19, true, true)]
-        [TestCase(".epub", 19, true, false)]
-        [TestCase(".m4b", 0, true, false)]
-        [TestCase(".m4b", 20, true, false)]
-        [TestCase(".m4b", 19, false, false)]
-        public void should_handoff_only_a_confirmed_new_m4b_after_final_file_writes(string extension, int persistedEdition, bool imported, bool expected)
+        [TestCase(".M4B", "Audiobook", false, 19, true, true)]
+        [TestCase(".EPUB", "EPUB", true, 19, true, true)]
+        [TestCase(".epub", "Audiobook", false, 19, true, false)]
+        [TestCase(".m4b", "EPUB", true, 19, true, false)]
+        [TestCase(".azw3", "EPUB", true, 19, true, false)]
+        [TestCase(".m4b", "Audiobook", false, 0, true, false)]
+        [TestCase(".m4b", "Audiobook", false, 20, true, false)]
+        [TestCase(".m4b", "Audiobook", false, 19, false, false)]
+        public void should_handoff_only_a_confirmed_typed_artwork_source_after_final_file_writes(
+            string extension, string format, bool isEbook, int persistedEdition, bool imported, bool expected)
         {
             GivenAuthorFolder();
             var path = Path.Combine(_author.Path, "City Lights" + extension);
             GivenFiles(new[] { path });
             var changed = new DateTime(2024, 2, 9, 15, 30, 0, DateTimeKind.Utc);
             var book = new Book { Id = 8, CanonicalId = Guid.NewGuid().ToString("N") };
-            var edition = new Edition { Id = 19, BookId = book.Id, Format = "Audiobook" };
+            var edition = new Edition { Id = 19, BookId = book.Id, Format = format, IsEbook = isEbook };
             var stored = new BookFile
             {
                 Id = 42,
@@ -718,7 +722,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 EditionId = persistedEdition,
                 Size = 1234,
                 Modified = changed.AddHours(-1),
-                Quality = new QualityModel(Quality.M4B)
+                Quality = new QualityModel(isEbook ? Quality.EPUB : Quality.M4B)
             };
             var decision = new ImportDecision<LocalBook>(new LocalBook
             {
@@ -727,7 +731,7 @@ namespace NzbDrone.Core.Test.MediaFiles.DiskScanServiceTests
                 Edition = edition,
                 Size = 5678,
                 Modified = changed,
-                Quality = new QualityModel(Quality.M4B)
+                Quality = new QualityModel(isEbook ? Quality.EPUB : Quality.M4B)
             });
             var importResult = imported
                 ? new ImportResult(decision)

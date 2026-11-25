@@ -9,8 +9,8 @@ process.
 
 ### Added
 
-- Recover a missing cover from a linked M4B on Linux after a library scan
-  confirms the match or when refreshing an individual book.
+- Recover a missing cover from a linked M4B or EPUB on Linux after a library
+  scan confirms the match or when refreshing an individual book.
 - Search Add New by author, book, or Hardcover series. Browse ordered series
   books and choose one to add through the existing book workflow.
 

@@ -123,6 +123,17 @@ namespace NzbDrone.Integration.Test.ApiTests
             Assert.That(config.Id, Is.GreaterThan(0));
         }
 
+        [Test]
+        public void should_require_a_signed_request_to_resolve_an_embedded_cover_lease()
+        {
+            var route = $"embeddedbookcover/1/1/{new string('a', 64)}";
+            var anonymous = ExecuteAnonymousRequest(RootUrl + "api/v1/", new SimpleRestRequest(route), allowRedirects: false);
+            var signed = ExecuteRequest(new SimpleRestRequest(route));
+
+            Assert.That(anonymous.StatusCode, Is.EqualTo(HttpStatusCode.Unauthorized));
+            Assert.That(signed.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void get_books_should_require_credentials_in_none_authentication_mode(bool sendEmptyKey)

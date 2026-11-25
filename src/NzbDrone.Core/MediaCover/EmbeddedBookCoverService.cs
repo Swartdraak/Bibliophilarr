@@ -128,16 +128,10 @@ namespace NzbDrone.Core.MediaCover
                     return null;
                 }
 
-                var source = Select(bookId);
-                if (source == null || !IsRegisteredLocalPath(source.Path))
-                {
-                    return null;
-                }
-
-                var token = Token(bookId, source);
-                return HasImage(CachePath(bookId, source.FileId, token))
-                    ? FormattableString.Invariant($"{_config.UrlBase}/api/v1/embeddedbookcover/{bookId}/{source.FileId}/{token}")
-                    : null;
+                var source = FindCachedSource(bookId, Select(bookId));
+                return source == null
+                    ? null
+                    : FormattableString.Invariant($"{_config.UrlBase}/api/v1/embeddedbookcover/{bookId}/{source.FileId}/{Token(bookId, source)}");
             }
             catch (Exception error) when (IsRecoverable(error))
             {
@@ -161,10 +155,8 @@ namespace NzbDrone.Core.MediaCover
                     return null;
                 }
 
-                var source = Select(bookId);
-                return source?.FileId == fileId && Token(bookId, source) == token && IsRegisteredLocalPath(source.Path)
-                    ? path
-                    : null;
+                var source = FindCachedSource(bookId, Select(bookId));
+                return source?.FileId == fileId && Token(bookId, source) == token ? path : null;
             }
             catch (Exception error) when (IsRecoverable(error))
             {
@@ -172,21 +164,62 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
+        internal static FormatType? SupportedSourceFormat(string path, Edition edition)
+        {
+            var format = ImportFormat.ForEdition(edition, requireExplicitFormat: true);
+            var extension = Path.GetExtension(path);
+            if (format == FormatType.Ebook && edition.IsEbook && string.Equals(extension, ".epub", StringComparison.OrdinalIgnoreCase))
+            {
+                return FormatType.Ebook;
+            }
+
+            if (format == FormatType.Audiobook && !edition.IsEbook && string.Equals(extension, ".m4b", StringComparison.OrdinalIgnoreCase))
+            {
+                return FormatType.Audiobook;
+            }
+
+            return null;
+        }
+
         private bool RecoverSelected(int bookId, RecoverImportedBookCoverCommand command)
         {
             try
             {
-                var source = Select(bookId);
-                if (source == null || !MatchesImport(source, command) || !IsRegisteredLocalPath(source.Path))
+                var sources = Select(bookId);
+                var importedSource = command == null ? null : sources.SingleOrDefault(source => MatchesImport(source, command));
+                if (sources.Count == 0 || (command != null && importedSource == null))
                 {
                     return false;
                 }
 
-                var token = Token(bookId, source);
-                var destination = CachePath(bookId, source.FileId, token);
-                if (HasImage(destination))
+                if (FindCachedSource(bookId, sources) != null)
                 {
                     return command == null;
+                }
+
+                // A scan hands off only the exact file version it persisted.
+                // A manual work refresh may try both independently eligible editions.
+                if (command != null)
+                {
+                    return RecoverSource(bookId, importedSource, sources);
+                }
+
+                return sources.Any(source => RecoverSource(bookId, source, sources));
+            }
+            catch (Exception error) when (IsRecoverable(error))
+            {
+                _logger.Debug("Embedded cover recovery did not complete for work {0} ({1}).", bookId, error.GetType().Name);
+                return false;
+            }
+        }
+
+        private bool RecoverSource(int bookId, Candidate source, IReadOnlyList<Candidate> sources)
+        {
+            try
+            {
+                if (!IsRegisteredLocalPath(source.Path))
+                {
+                    return false;
                 }
 
                 using var handle = OpenSource(source.Path);
@@ -196,53 +229,67 @@ namespace NzbDrone.Core.MediaCover
                 }
 
                 using var input = new FileStream(handle, FileAccess.Read);
-                var cover = M4bCoverReader.Read(input);
+                var cover = source.IsEbook ? EpubCoverReader.Read(input) : M4bCoverReader.Read(input);
                 if (cover == null || !TryGetVersion(handle, source, out var checkedModified) || checkedModified != modified)
                 {
                     return false;
                 }
 
-                return StageAndPublish(bookId, source, destination, cover, handle, modified);
+                var destination = CachePath(bookId, source.FileId, Token(bookId, source));
+                return StageAndPublish(bookId, source, sources, destination, cover, handle, modified);
             }
             catch (Exception error) when (IsRecoverable(error))
             {
-                _logger.Debug("Embedded cover recovery did not complete for work {0} ({1}).", bookId, error.GetType().Name);
+                _logger.Debug("Embedded cover source did not complete for work {0} ({1}).", bookId, error.GetType().Name);
                 return false;
             }
         }
 
-        private static bool MatchesImport(Candidate source, RecoverImportedBookCoverCommand command)
+        private Candidate FindCachedSource(int bookId, IReadOnlyList<Candidate> sources)
         {
-            return command == null ||
-                (source.CanonicalId == command.CanonicalId && source.FileId == command.FileId &&
-                 source.EditionId == command.EditionId && source.Size == command.Size && source.Modified.Ticks == command.ModifiedTicks);
+            // A valid existing derivative wins over trying the other format. Prefer
+            // the legacy audio derivative if historical state contains both caches.
+            return sources.Reverse().FirstOrDefault(source =>
+                HasImage(CachePath(bookId, source.FileId, Token(bookId, source))) && IsRegisteredLocalPath(source.Path));
         }
 
-        private Candidate Select(int bookId)
+        private static bool MatchesImport(Candidate source, RecoverImportedBookCoverCommand command)
+        {
+            return source.CanonicalId == command.CanonicalId && source.FileId == command.FileId &&
+                   source.EditionId == command.EditionId && source.Size == command.Size && source.Modified.Ticks == command.ModifiedTicks;
+        }
+
+        private IReadOnlyList<Candidate> Select(int bookId)
         {
             using var connection = _database.OpenConnection();
             return Select(connection, null, bookId);
         }
 
-        private static Candidate Select(IDbConnection connection, IDbTransaction transaction, int bookId)
+        private static IReadOnlyList<Candidate> Select(IDbConnection connection, IDbTransaction transaction, int bookId)
         {
             var rows = connection.Query<Candidate>(CandidatesSql, new { BookId = bookId }, transaction).ToList();
             if (rows.Any(row => row.Images?.Any(image => image?.CoverType == MediaCoverTypes.Cover && !string.IsNullOrWhiteSpace(image.Url)) == true))
             {
-                return null;
+                return Array.Empty<Candidate>();
             }
 
-            var supported = rows.Where(row => row.FileId > 0 && row.Size > 0 && row.EditionId > 0 &&
-                Guid.TryParseExact(row.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
-                string.Equals(Path.GetExtension(row.Path), ".m4b", StringComparison.OrdinalIgnoreCase) &&
-                !row.IsEbook &&
-                ImportFormat.ForEdition(new Edition { Format = row.Format }, requireExplicitFormat: true) == FormatType.Audiobook)
-                .Take(2)
+            return rows.Where(row => row.FileId > 0 && row.Size > 0 && row.EditionId > 0 &&
+                    Guid.TryParseExact(row.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
+                    SupportedSourceFormat(row.Path, new Edition { Format = row.Format, IsEbook = row.IsEbook }).HasValue)
+                .GroupBy(row => row.IsEbook)
+                .Where(group => group.Count() == 1)
+                .OrderByDescending(group => group.Key)
+                .Select(group => group.Single())
                 .ToList();
-            return supported.Count == 1 ? supported[0] : null;
         }
 
-        private bool StageAndPublish(int bookId, Candidate source, string destination, byte[] cover, SafeFileHandle handle, DateTime modified)
+        private bool StageAndPublish(int bookId,
+                                     Candidate source,
+                                     IReadOnlyList<Candidate> sources,
+                                     string destination,
+                                     byte[] cover,
+                                     SafeFileHandle handle,
+                                     DateTime modified)
         {
             if (cover.Length == 0 || cover.Length > MaxCoverBytes)
             {
@@ -281,7 +328,7 @@ namespace NzbDrone.Core.MediaCover
                     return false;
                 }
 
-                return Publish(bookId, source, staged, destination);
+                return Publish(bookId, sources, staged, destination);
             }
             finally
             {
@@ -292,7 +339,7 @@ namespace NzbDrone.Core.MediaCover
             }
         }
 
-        private bool Publish(int bookId, Candidate source, string staged, string destination)
+        private bool Publish(int bookId, IReadOnlyList<Candidate> sources, string staged, string destination)
         {
             var postgres = _database.DatabaseType == DatabaseType.PostgreSQL;
             using var connection = _database.OpenConnection();
@@ -306,14 +353,11 @@ namespace NzbDrone.Core.MediaCover
             }
 
             var current = Select(connection, transaction, bookId);
-            if (current == null || !string.Equals(Token(bookId, current), Token(bookId, source), StringComparison.Ordinal))
+            if (!current.Select(candidate => Token(bookId, candidate))
+                        .SequenceEqual(sources.Select(candidate => Token(bookId, candidate)), StringComparer.Ordinal) ||
+                FindCachedSource(bookId, current) != null)
             {
                 return false;
-            }
-
-            if (HasImage(destination))
-            {
-                return true;
             }
 
             // The transaction protects the fresh read through the atomic move.

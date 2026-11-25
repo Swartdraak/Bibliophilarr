@@ -374,21 +374,22 @@ namespace NzbDrone.Core.MediaFiles
 
             var commands = results.Where(result => result.Result == ImportResultType.Imported)
                 .Select(result => result.ImportDecision.Item)
-                .Where(item => item.Book?.Id > 0 && Guid.TryParseExact(item.Book.CanonicalId, "N", out _) &&
-                    item.Edition?.Id > 0 && item.Edition.BookId == item.Book.Id &&
-                    !item.Edition.IsEbook && ImportFormat.ForEdition(item.Edition, requireExplicitFormat: true) == FormatType.Audiobook &&
-                    string.Equals(Path.GetExtension(item.Path), ".m4b", StringComparison.OrdinalIgnoreCase))
+                .Where(item => item.Book?.Id > 0 && Guid.TryParseExact(item.Book.CanonicalId, "N", out var canonical) && canonical != Guid.Empty &&
+                    item.Edition?.Id > 0 && item.Edition.BookId == item.Book.Id)
+                .Select(item => (Item: item, Format: EmbeddedBookCoverService.SupportedSourceFormat(item.Path, item.Edition)))
+                .Where(item => item.Format.HasValue)
                 .Join(
                     files.Where(file => file.Id > 0 && file.CalibreId == 0 && file.Size > 0 && file.Modified != default && !file.UnmappedReason.HasValue),
-                    item => item.Path,
+                    item => item.Item.Path,
                     file => file.Path,
-                    (item, file) => (Item: item, File: file),
+                    (item, file) => (item.Item, item.Format, File: file),
                     PathEqualityComparer.Instance)
                 .Where(match => match.Item.Edition.Id == match.File.EditionId)
                 .DistinctBy(match => (match.Item.Book.Id, match.File.Id, match.File.EditionId, match.File.Size, match.File.Modified))
-                .GroupBy(match => match.Item.Book.Id)
+                .GroupBy(match => (match.Item.Book.Id, match.Format))
                 .Where(group => group.Count() == 1)
                 .Select(group => group.Single())
+                .OrderByDescending(match => match.Format == FormatType.Ebook)
                 .Select(match => new RecoverImportedBookCoverCommand
                 {
                     BookId = match.Item.Book.Id,

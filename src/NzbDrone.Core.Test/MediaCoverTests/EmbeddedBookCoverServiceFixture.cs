@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -369,6 +370,158 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             service.GetUrl(_book.Id).Should().NotBeNull();
             service.GetUrl(other.Id).Should().NotBeNull();
             service.RecoverImported(command).Should().BeFalse("an exact duplicate must not publish another image event");
+        }
+
+        [Test]
+        public void should_keep_a_recovered_audio_cover_when_a_valid_ebook_is_added()
+        {
+            Subject.Recover(_book.Id).Should().BeTrue();
+            var audioUrl = Subject.GetUrl(_book.Id);
+            var audioToken = audioUrl.Split('/').Last();
+            var audioPath = Subject.GetPath(_book.Id, _file.Id, audioToken);
+            var originalCover = File.ReadAllBytes(audioPath);
+
+            var ebook = LinkEpub();
+
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeFalse();
+            Subject.Recover(_book.Id).Should().BeTrue();
+            Subject.GetUrl(_book.Id).Should().Be(audioUrl);
+            Subject.GetPath(_book.Id, _file.Id, audioToken).Should().Be(audioPath);
+            Subject.GetPath(_book.Id, ebook.Id, audioToken).Should().BeNull();
+            File.ReadAllBytes(audioPath).Should().Equal(originalCover);
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.MoveFile(It.IsAny<string>(), It.IsAny<string>(), false), Times.Once());
+        }
+
+        [Test]
+        public void should_attest_the_exact_ebook_import_and_keep_the_result_when_its_audio_job_follows()
+        {
+            var ebook = LinkEpub();
+            var originalEpub = File.ReadAllBytes(ebook.Path);
+            var audio = Db.All<BookFile>().Single(file => file.Id == _file.Id);
+
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeTrue();
+            Subject.RecoverImported(ForImport(_book, audio)).Should().BeFalse();
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeFalse();
+            var url = Subject.GetUrl(_book.Id);
+            url.Should().StartWith($"/read/library/api/v1/embeddedbookcover/{_book.Id}/{ebook.Id}/");
+            var token = url.Split('/').Last();
+            Subject.GetPath(_book.Id, audio.Id, token).Should().BeNull();
+            using var cover = Image.Load(Subject.GetPath(_book.Id, ebook.Id, token));
+            cover.Width.Should().Be(24);
+            cover.Height.Should().Be(36);
+            cover.Metadata.DecodedImageFormat.Should().BeSameAs(JpegFormat.Instance);
+
+            File.ReadAllBytes(ebook.Path).Should().Equal(originalEpub);
+            File.ReadAllBytes(audio.Path).Should().Equal(_original);
+            Db.All<BookFile>().Should().Contain(file => file.Id == ebook.Id && file.EditionId == ebook.EditionId);
+            Db.All<BookFile>().Should().Contain(file => file.Id == audio.Id && file.EditionId == _edition.Id);
+            Db.All<Edition>().Should().OnlyContain(edition => edition.BookId == _book.Id && !edition.Images.Any());
+        }
+
+        [Test]
+        public void should_keep_ebook_cache_current_when_its_audio_counterpart_is_restored()
+        {
+            var ebook = LinkEpub();
+            _file.EditionId = 0;
+            Db.Update(_file);
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeTrue();
+            var ebookUrl = Subject.GetUrl(_book.Id);
+            _file.EditionId = _edition.Id;
+            Db.Update(_file);
+
+            Subject.Recover(_book.Id).Should().BeTrue();
+            Subject.GetUrl(_book.Id).Should().Be(ebookUrl);
+            Mocker.GetMock<IDiskProvider>().Verify(disk => disk.MoveFile(It.IsAny<string>(), It.IsAny<string>(), false), Times.Once());
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_try_audio_separately_when_the_epub_lacks_a_cover(bool scheduled)
+        {
+            var ebook = LinkEpub(declareCover: false);
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeFalse();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+
+            var recovered = scheduled
+                ? Subject.RecoverImported(ForImport(_book, Db.All<BookFile>().Single(file => file.Id == _file.Id)))
+                : Subject.Recover(_book.Id);
+            recovered.Should().BeTrue();
+            Subject.GetUrl(_book.Id).Should().StartWith($"/read/library/api/v1/embeddedbookcover/{_book.Id}/{_file.Id}/");
+        }
+
+        [Test]
+        public void should_reassess_lease_and_provider_precedence_for_a_published_ebook()
+        {
+            var ebook = LinkEpub();
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeTrue();
+            var token = Subject.GetUrl(_book.Id).Split('/').Last();
+            Subject.GetPath(_book.Id, ebook.Id, token).Should().NotBeNull();
+
+            ebook.Modified = ebook.Modified.AddSeconds(3);
+            Db.Update(ebook);
+            Subject.GetPath(_book.Id, ebook.Id, token).Should().BeNull();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+
+            _edition.Images.Add(new NzbDrone.Core.MediaCover.MediaCover(MediaCoverTypes.Cover, "https://example.invalid/provider.jpg"));
+            Db.Update(_edition);
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeFalse();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+        }
+
+        [TestCase(false, "EPUB")]
+        [TestCase(true, "Audiobook")]
+        public void should_not_read_an_epub_when_the_linked_edition_does_not_establish_ebook_type(bool isEbook, string format)
+        {
+            var ebook = LinkEpub(isEbook: isEbook, format: format);
+            Subject.RecoverImported(ForImport(_book, ebook)).Should().BeFalse();
+            Subject.GetUrl(_book.Id).Should().BeNull();
+            Mocker.GetMock<IRootFolderService>().Verify(roots => roots.GetBestRootFolder(It.IsAny<string>()), Times.Never);
+        }
+
+        private BookFile LinkEpub(bool declareCover = true, bool isEbook = true, string format = "EPUB")
+        {
+            var edition = Db.Insert(new Edition
+            {
+                BookId = _book.Id,
+                ForeignEditionId = "hardcover:edition:43",
+                Title = "City Lights",
+                TitleSlug = "city-lights-ebook",
+                Format = format,
+                IsEbook = isEbook
+            });
+            var path = Path.Combine(_library, "City Lights.EPUB");
+            using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+            {
+                AddEntry(zip, "mimetype", "application/epub+zip"u8);
+                AddEntry(zip, "META-INF/container.xml", """
+                    <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+                      <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+                    </container>
+                    """u8);
+                var opf = declareCover
+                    ? """<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata/><manifest><item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/></manifest></package>"""u8
+                    : """<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata/><manifest/></package>"""u8;
+                AddEntry(zip, "OEBPS/content.opf", opf);
+                using var image = new Image<Rgba32>(24, 36);
+                using var member = zip.CreateEntry("OEBPS/cover.png").Open();
+                image.SaveAsPng(member);
+            }
+
+            var file = Db.Insert(new BookFile
+            {
+                EditionId = edition.Id,
+                Path = path,
+                Size = new FileInfo(path).Length,
+                Modified = File.GetLastWriteTimeUtc(path),
+                Quality = new QualityModel(Quality.EPUB)
+            });
+            return Db.All<BookFile>().Single(current => current.Id == file.Id);
+        }
+
+        private static void AddEntry(ZipArchive archive, string name, ReadOnlySpan<byte> data)
+        {
+            using var entry = archive.CreateEntry(name).Open();
+            entry.Write(data);
         }
 
         private static RecoverImportedBookCoverCommand ForImport(Book book, BookFile file)
